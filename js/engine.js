@@ -57,7 +57,7 @@
     const vertical = p.orient === 'v';
     const c = {
       R, n, L, D, A, Vs, Vc, CR, w,
-      mp: Math.max(+p.mp, 0), mc, lam: +p.lG, IG: mc * kG * kG,
+      mp: Math.max(+p.mp, 0), mc, lam: +p.lG, IG: mc * kG * kG, kGl: kG,
       gx: vertical ? -G0 : 0, gy: vertical ? 0 : -G0,
       pin, pex: P_EXH, gamma: +p.gamma, model: p.model, Q,
       th0: (360 - p.soc) * D2R, dth: Math.max(+p.dur, 1) * D2R,
@@ -199,6 +199,65 @@
     o.prim = mR * R * w2 * C;                                         // primary unbalanced force
     o.sec = mR * R * w2 * (C * C - S * S) / n;                        // secondary unbalanced force
     return o;
+  }
+
+  /* ------------------- textbook method: dynamically equivalent two-mass rod */
+  // The rod is replaced by m1 at the gudgeon pin and m2 at the crank pin (same mass, same CG).
+  // That system has the wrong moment of inertia, I2 = m_c l1 (l − l1), so a correction couple
+  // T' = (I2 − I_G) α_c = m_c l1 (l − L) α_c is added (L = l1 + k_G²/l1). Its effect on the crank is
+  // T_c = T' cosθ / √(n² − sin²θ). With the exact acceleration this method is exact.
+  function equivalent(c, th, pg) {
+    const S = Math.sin(th), C = Math.cos(th), n = c.n, R = c.R, w = c.w, w2 = w * w;
+    const root = Math.sqrt(n * n - S * S), r3 = root * root * root;
+    const phi = Math.asin(S / n);
+    const x = R * (1 - C + n - root);
+    const xth = R * (S + S * C / root);
+    const v = w * xth;
+    const a = w2 * R * (C + (n * n * (C * C - S * S) + S * S * S * S) / r3);
+    const aApx = w2 * R * (C + (C * C - S * S) / n);
+    const l1 = (1 - c.lam) * c.L;                 // CG distance from the small end
+    const m1 = c.mc * c.lam, m2 = c.mc - m1;      // shares at gudgeon pin and crank pin
+    const mR = c.mp + m1;
+    const Fg = pg * c.A;
+    const FI = mR * a;
+    const WR = -mR * c.gx;                        // weight of reciprocating parts along the stroke (vertical engine)
+    const FP = Fg - FI + WR;
+    const FQ = FP / Math.cos(phi), FN = FP * Math.tan(phi);
+    const FT = FQ * Math.sin(th + phi), FR = FQ * Math.cos(th + phi);
+    const T1 = FT * R;
+    const alc = -w2 * S * (n * n - 1) / r3;
+    const I2 = c.mc * l1 * (c.L - l1);
+    const Leq = l1 > 0 ? l1 + c.kGl * c.kGl / l1 : NaN;
+    const Tprime = (I2 - c.IG) * alc;
+    const Tc = Tprime * C / root;
+    const Tw = m2 * (c.gx * (-R * S) + c.gy * (R * C));   // weight of the crank-pin share m2
+    return { S, C, root, phi, x, v, a, aApx, l1, m1, m2, mR, Fg, FI, WR, FP, FQ, FN, FT, FR, T1, alc, I2, Leq, Tprime, Tc, Tw, T: T1 + Tc + Tw };
+  }
+
+  /* ---------------------- turning-moment diagram: loop areas (textbook table) */
+  function tmdLoops(res) {
+    const s = res.summary, M = s.M, h = s.res * D2R, Tm = s.Tmean, T = res.T;
+    const d = (i) => T[((i % M) + M) % M] - Tm;
+    let start = -1;
+    for (let i = 0; i < M; i++) if (d(i) !== 0 && d(i) * d(i + 1) < 0) { start = i; break; }
+    if (start < 0) return [];
+    const loops = [];
+    const f0 = d(start) / (d(start) - d(start + 1));
+    let from = (start + f0) * s.res, area = 0.5 * d(start + 1) * (1 - f0) * h;
+    for (let k = 1; k <= M; k++) {
+      const i = start + k, a = d(i), b = d(i + 1);
+      if (k < M && a * b < 0) {
+        const f = a / (a - b);
+        area += 0.5 * a * f * h;
+        const to = (i + f) * s.res;
+        loops.push({ from: from % 720, to: to % 720, area });
+        from = to; area = 0.5 * b * (1 - f) * h;
+      } else if (k < M) area += 0.5 * (a + b) * h;
+      else { area += 0.5 * a * f0 * h; loops.push({ from: from % 720, to: (start + f0) * s.res % 720, area }); }
+    }
+    let E = 0;
+    for (const L of loops) { E += L.area; L.E = E; }
+    return loops;
   }
 
   const ARRAY_KEYS = ['x', 'v', 'a', 'vApx', 'aApx', 'phi', 'omc', 'alc', 'Fg', 'Fi', 'Fp', 'Fq', 'Fn', 'Ft', 'Fr',
@@ -431,7 +490,14 @@
       vErr = Math.max(vErr, Math.abs(vfd - o.v) / (c.R * c.w));
       aErr = Math.max(aErr, Math.abs(afd - o.a) / (c.R * c.w * c.w));
     }
+    // textbook equivalent-system method (correction couple) vs exact Newton–Euler
+    let eqErr = 0;
+    for (let i = 0; i < M; i += 4) {
+      const q = equivalent(c, i * h, res.P[i] - P_ATM);
+      eqErr = Math.max(eqErr, Math.abs(q.T - res.T[i]));
+    }
     return {
+      eqVsNE: Tabs > 0 ? eqErr / Tabs : 0,
       neVsEnergy: Tabs > 0 ? s.NEerr / Tabs : 0,
       inertiaWork: Iabs > 0 ? Math.abs(Iint) / Iabs : 0,
       workPdv: Math.abs(s.W - s.Wpdv) / Math.max(Math.abs(s.W), Math.abs(s.Wpdv), 1e-9 * s.Wabs, 1e-12),
@@ -441,7 +507,7 @@
 
   const Engine = {
     G0, P_ATM, P_EXH, Q_FULL, WIEBE_A, WIEBE_M, D2R, R2D, DEFAULTS, ARRAY_KEYS, SENS_KEYS, SENS_OUTS,
-    setup, xOf, volume, pressureTrace, point, solve, sensitivity, designMap,
+    setup, xOf, volume, pressureTrace, point, equivalent, tmdLoops, solve, sensitivity, designMap,
     textbookBenchmark, ottoBenchmark, selfChecks, relErr,
   };
   root.Engine = Engine;

@@ -60,6 +60,23 @@ for (const [name, p] of Object.entries(PRESETS)) {
   // 8. flywheel reproduces C_s
   const Cs = (s.Nmax - s.Nmin) / p.N;
   check('8. speed fluctuation with designed flywheel = C_s', Cs, p.Cs / 100, 1e-3);
+  checkSmall('10. equivalent two-mass rod + correction couple vs Newton–Euler', sc.eqVsNE, 1e-9);
+  // 11. textbook loop-area table of the TMD reproduces ΔE and closes (Σ areas = 0)
+  const loops = E.tmdLoops(R);
+  const Es = [0, ...loops.map((L) => L.E)];
+  check('11. TMD loop table: E_max − E_min = ΔE', Math.max(...Es) - Math.min(...Es), s.dE, 2e-3);
+  checkSmall('11. TMD loop table closes: Σ areas / ΔE', loops[loops.length - 1].E / s.dE, 1e-3);
+  // 12. relative-velocity / acceleration polygons close: a_C + a^r_PC + a^t_PC = a_P
+  {
+    const c = R.c; let err = 0;
+    for (let deg = 7; deg < 360; deg += 23) {
+      const th = deg * E.D2R, o = E.point(c, th, 0, {}), S = Math.sin(th), C = Math.cos(th), root = Math.sqrt(c.n * c.n - S * S);
+      const ax = -c.R * c.w * c.w * C - o.omc * o.omc * c.R * root - o.alc * c.R * S;
+      const ay = -c.R * c.w * c.w * S + o.omc * o.omc * c.R * S - o.alc * c.R * root;
+      err = Math.max(err, Math.hypot(ax + o.a, ay) / (c.R * c.w * c.w));
+    }
+    checkSmall('12. acceleration polygon closes (a_C + a^r + a^t = a_P)', err, 1e-12);
+  }
   console.log(`      P = ${(s.P / 1000).toFixed(2)} kW, T_mean = ${s.Tmean.toFixed(1)} N·m, p_max = ${(s.pmax / 1e5).toFixed(1)} bar @ ${s.psiPmax}°, ` +
     `imep = ${(s.imep / 1e5).toFixed(2)} bar, η_i = ${(s.eta * 100).toFixed(1)} %, ΔE = ${s.dE.toFixed(1)} J, I = ${s.I.toExponential(3)} kg·m², m_rim = ${s.mrim.toFixed(2)} kg`);
 }

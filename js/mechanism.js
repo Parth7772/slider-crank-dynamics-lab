@@ -289,5 +289,74 @@
       }
     }
   }
+  /* ------------------------------------------------------------------
+   * Velocity and acceleration polygons (relative velocity method), drawn to
+   * scale in the same orientation as the mechanism so perpendiculars match.
+   * ------------------------------------------------------------------ */
+  class Polygons {
+    constructor(host) {
+      const id = ++UID;
+      this.W = 640; this.H = 270;
+      this.svg = el('svg', { class: 'poly-svg', viewBox: '0 0 640 270', role: 'img', 'aria-label': 'Velocity and acceleration diagrams', preserveAspectRatio: 'xMidYMid meet' }, host);
+      const defs = el('defs', null, this.svg);
+      this.mk = {};
+      for (const [k, col] of [['k', '#111'], ['r', '#a3142a'], ['b', '#1f77b4'], ['g', '#2ca02c']]) {
+        const m = el('marker', { id: 'pm' + k + id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: 'auto', markerUnits: 'userSpaceOnUse' }, defs);
+        el('path', { d: 'M0,1 L10,5 L0,9 z', fill: col }, m);
+        this.mk[k] = 'url(#pm' + k + id + ')';
+      }
+      const panel = (x0, title) => {
+        const g = el('g', null, this.svg);
+        el('rect', { x: x0 + 0.5, y: 0.5, width: 309, height: 269, class: 'poly-frame' }, g);
+        const t = el('text', { x: x0 + 155, y: 20, class: 'poly-title', 'text-anchor': 'middle' }, g);
+        t.textContent = title;
+        return g;
+      };
+      this.gv = panel(0, 'Velocity diagram');
+      this.ga = panel(330, 'Acceleration diagram');
+      const arrow = (g, cls, mk) => el('line', { class: 'poly-vec ' + cls, 'marker-end': mk }, g);
+      const label = (g, txt) => { const t = el('text', { class: 'poly-lab' }, g); t.textContent = txt; return t; };
+      this.v = { oc: arrow(this.gv, 'k', this.mk.k), cp: arrow(this.gv, 'b', this.mk.b), op: arrow(this.gv, 'r', this.mk.r),
+        lo: label(this.gv, 'o'), lc: label(this.gv, 'c'), lp: label(this.gv, 'p') };
+      this.a = { oc: arrow(this.ga, 'k', this.mk.k), cx: arrow(this.ga, 'g', this.mk.g), xp: arrow(this.ga, 'b', this.mk.b), op: arrow(this.ga, 'r', this.mk.r),
+        lo: label(this.ga, 'o′'), lc: label(this.ga, 'c′'), lx: label(this.ga, 'x'), lp: label(this.ga, 'p′') };
+    }
+    // pts: array of [x,y] in world; returns mapped screen points fitted into the panel
+    fit(pts, x0, vertical) {
+      const sp = pts.map(([x, y]) => (vertical ? [-y, -x] : [x, -y]));
+      let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
+      for (const [x, y] of sp) { a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); d = Math.max(d, y); }
+      const bw = 250, bh = 200, span = Math.max(b - a, d - c, 1e-12);
+      const k = Math.min(bw / Math.max(b - a, span * 0.25), bh / Math.max(d - c, span * 0.25));
+      const cx = x0 + 155 - k * (a + b) / 2, cy = 145 - k * (c + d) / 2;
+      return sp.map(([x, y]) => [cx + k * x, cy + k * y]);
+    }
+    update(st) {
+      const set = (ln, p, q) => { ln.setAttribute('x1', f(p[0])); ln.setAttribute('y1', f(p[1])); ln.setAttribute('x2', f(q[0])); ln.setAttribute('y2', f(q[1])); };
+      const lab = (t, p, ctr) => {
+        let dx = p[0] - ctr[0], dy = p[1] - ctr[1]; const n = Math.hypot(dx, dy) || 1;
+        t.setAttribute('x', f(p[0] + dx / n * 13 - 4)); t.setAttribute('y', f(p[1] + dy / n * 13 + 5));
+      };
+      // velocity: o → c (v_C), c → p (v_PC), o → p (v_P)
+      const [o, c, p] = this.fit([[0, 0], st.vC, st.vP], 0, st.vertical);
+      set(this.v.oc, o, c); set(this.v.cp, c, p); set(this.v.op, o, p);
+      this.v.cp.style.display = Math.hypot(p[0] - c[0], p[1] - c[1]) > 3 ? '' : 'none';
+      this.v.op.style.display = Math.hypot(p[0] - o[0], p[1] - o[1]) > 3 ? '' : 'none';
+      const cv = [(o[0] + c[0] + p[0]) / 3, (o[1] + c[1] + p[1]) / 3];
+      lab(this.v.lo, o, cv); lab(this.v.lc, c, cv); lab(this.v.lp, p, cv);
+      // acceleration: o′ → c′ (a_C), c′ → x (radial), x → p′ (tangential), o′ → p′ (a_P)
+      const X = [st.aC[0] + st.aR[0], st.aC[1] + st.aR[1]];
+      const P = [X[0] + st.aT[0], X[1] + st.aT[1]];
+      const [o1, c1, x1, p1] = this.fit([[0, 0], st.aC, X, P], 330, st.vertical);
+      set(this.a.oc, o1, c1); set(this.a.cx, c1, x1); set(this.a.xp, x1, p1); set(this.a.op, o1, p1);
+      this.a.cx.style.display = Math.hypot(x1[0] - c1[0], x1[1] - c1[1]) > 3 ? '' : 'none';
+      this.a.xp.style.display = Math.hypot(p1[0] - x1[0], p1[1] - x1[1]) > 3 ? '' : 'none';
+      this.a.op.style.display = Math.hypot(p1[0] - o1[0], p1[1] - o1[1]) > 3 ? '' : 'none';
+      const ca = [(o1[0] + c1[0] + x1[0] + p1[0]) / 4, (o1[1] + c1[1] + x1[1] + p1[1]) / 4];
+      lab(this.a.lo, o1, ca); lab(this.a.lc, c1, ca); lab(this.a.lx, x1, ca); lab(this.a.lp, p1, ca);
+    }
+  }
+
   root.Mechanism = Mechanism;
+  root.Polygons = Polygons;
 })(typeof self !== 'undefined' ? self : globalThis);
