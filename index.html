@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Slider–Crank Dynamics Lab</title>
+<meta name="description" content="Interactive dynamic analysis of a single-cylinder IC-engine slider-crank mechanism: exact kinematics, gas pressure, Newton–Euler force analysis, turning-moment diagram, flywheel design and balancing.">
+<meta name="theme-color" content="#0e0e10">
+<meta property="og:title" content="Slider–Crank Dynamics Lab">
+<meta property="og:description" content="Change any parameter of a single-cylinder engine and watch the kinematics, forces, turning-moment diagram, flywheel and balancing respond — with verified calculations.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23fff'/%3E%3Ccircle cx='20' cy='38' r='11' fill='none' stroke='%23111' stroke-width='3'/%3E%3Cline x1='20' y1='38' x2='27' y2='29' stroke='%23111' stroke-width='4' stroke-linecap='round'/%3E%3Cline x1='27' y1='29' x2='50' y2='38' stroke='%23a3142a' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='46' y='30' width='12' height='16' fill='%23ccc' stroke='%23111' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="vendor/katex/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/katex/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="css/style.css">
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="js/engine.js"></script>
+<script defer src="js/plot.js"></script>
+<script defer src="js/mechanism.js"></script>
+<script defer src="js/app.js"></script>
+</head>
+<body>
+<header class="topbar" id="top">
+  <a class="brand" href="#s-problem" aria-label="Slider–Crank Dynamics Lab, go to top">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="30" height="30"><circle cx="20" cy="38" r="11" fill="none" stroke="currentColor" stroke-width="3"/><line x1="20" y1="38" x2="27" y2="29" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><line x1="27" y1="29" x2="50" y2="38" stroke="#e0566b" stroke-width="4" stroke-linecap="round"/><rect x="46" y="30" width="12" height="16" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>
+    </span>
+    <span class="brand-text"><b>Slider–Crank Dynamics Lab</b><small>Dynamics of Machinery · course project</small></span>
+  </a>
+  <div class="tb-actions">
+    <label class="tb-select" title="Load a ready-made engine"><span>Preset</span><select id="preset" aria-label="Preset engine"></select></label>
+    <button class="btn ghost" id="btnBaseline" title="Freeze the current design so every change is compared against it">Pin baseline</button>
+    <button class="btn ghost hide-sm" id="btnCSV" title="Download the full cycle table as CSV">CSV</button>
+    <button class="btn ghost hide-sm" id="btnPrint" title="Print or save as PDF">Print</button>
+    <button class="btn primary" id="btnShare" title="Copy a link that opens this exact configuration">Share link</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="panel" id="panel" aria-label="Input data">
+    <div class="panel-head">
+      <h2>Data</h2>
+      <button class="btn tiny" id="btnReset" title="Restore the selected preset">Reset</button>
+      <button class="panel-close" id="panelClose" aria-label="Close parameters">×</button>
+    </div>
+    <p class="panel-note">Drag a slider or type a value; everything recomputes instantly. Hover any plot to read values, click to jump the mechanism to that crank angle.</p>
+    <div id="controls"></div>
+    <p class="panel-foot" id="perf"></p>
+  </aside>
+
+  <main class="pages" id="pages">
+
+    <!-- ============================================================ PROBLEM -->
+    <section class="sheet" id="s-problem" data-title="Problem statement">
+      <div class="tag" data-tex="\mathscr{P}"></div>
+      <h1>Problem Statement</h1>
+      <p class="byline">Dynamic analysis of a single-cylinder four-stroke engine &mdash; interactive solution</p>
+      <p class="byline small">Dynamics of Machinery &middot; Semester V &middot; course project</p>
+
+      <p><b>Setting.</b> The engine of Fig.&nbsp;1 is a slider-crank chain <span class="tx" data-tex="OCP"></span>. The crank <span class="tx" data-tex="OC"></span> of radius <span class="tx" data-tex="r"></span> turns counter-clockwise at <span class="tx" data-tex="N"></span>&nbsp;rpm about the fixed centre <span class="tx" data-tex="O"></span>. The connecting rod <span class="tx" data-tex="CP"></span> has length <span class="tx" data-tex="l=nr"></span>, mass <span class="tx" data-tex="m_c"></span>, centre of mass <span class="tx" data-tex="G"></span> at distance <span class="tx" data-tex="l_G"></span> from the crank pin and radius of gyration <span class="tx" data-tex="k_G"></span>. It drives a piston of bore <span class="tx" data-tex="D"></span> whose reciprocating mass is <span class="tx" data-tex="m_p"></span>. The cylinder pressure <span class="tx" data-tex="p(\psi)"></span> follows a single-zone first-law combustion model with Wiebe heat release (or an ideal Otto cycle). The crankshaft carries a rim-type flywheel of mean diameter <span class="tx" data-tex="D_f"></span> and a counterweight that balances the revolving mass plus a fraction <span class="tx" data-tex="c"></span> of the reciprocating mass.</p>
+      <p><b>Coordinates.</b> The crank angle <span class="tx" data-tex="\theta"></span> is measured from the inner dead centre (TDC); <span class="tx" data-tex="\psi\in[0,720^\circ)"></span> is the four-stroke cycle angle (0 TDC suction, 180 BDC, 360 firing TDC, 540 BDC). <span class="tx" data-tex="\varphi"></span> is the obliquity of the rod and <span class="tx" data-tex="x"></span> the piston displacement from TDC. Forces are positive toward the crank; the crankshaft torque <span class="tx" data-tex="T"></span> is positive in the direction of rotation.</p>
+      <p><b>Data</b> <span class="muted">(live; change it in the Data panel)</span>.</p>
+      <p class="dataline" id="dataLine"></p>
+      <p><b>To determine.</b></p>
+      <ol class="todo">
+        <li><a href="#s-kin">Kinematics</a>: piston displacement, velocity and acceleration; angular velocity and acceleration of the connecting rod (exact and approximate).</li>
+        <li><a href="#s-gas">Gas pressure</a>: <span class="tx" data-tex="p(\psi)"></span>, indicator diagram, indicated work, mean effective pressure, power and efficiency.</li>
+        <li><a href="#s-force">Dynamic force analysis</a>: gas and inertia forces, piston effort, thrust in the connecting rod, side thrust, crank effort, radial force, bearing loads (exact Newton–Euler, rod mass included).</li>
+        <li><a href="#s-tmd">Turning-moment diagram</a>: mean torque, maximum fluctuation of energy <span class="tx" data-tex="\Delta E"></span>, flywheel inertia and rim size for the required <span class="tx" data-tex="C_s"></span>.</li>
+        <li><a href="#s-bal">Balancing</a>: primary and secondary unbalanced forces, shaking force with partial balancing, and the optimum balance fraction.</li>
+        <li><a href="#s-sens">Sensitivity</a> of the design to every parameter, and design-space maps.</li>
+        <li><a href="#s-ver">Verification</a> of the solver against independent methods and a textbook problem.</li>
+      </ol>
+
+      <div class="tag" data-tex="\mathcal{R}"></div>
+      <h3 class="center">Results at a glance</h3>
+      <div class="kpis" id="kpis"></div>
+      <p class="hint" id="baselineHint">Tip: press <b>Pin baseline</b>, then change a parameter. Every result shows its change in % and the plots show the baseline dashed.</p>
+      <div class="page-no">1</div>
+    </section>
+
+    <!-- ============================================================ MECHANISM -->
+    <section class="sheet" id="s-mech" data-title="Mechanism">
+      <div class="tag" data-tex="\mathcal{M}"></div>
+      <h2>Mechanism in Motion</h2>
+      <p class="sub"><b>Fig. 1.</b> Slider-crank <span class="tx" data-tex="OCP"></span> drawn to scale from the current data. Red arrows show the forces at this instant (common scale); the shaded sector is the counterweight; gas colour follows cylinder pressure.</p>
+      <div class="mech-head"><span id="strokeName" class="stroke-name">&nbsp;</span><span id="psiLabel" class="psi-label"></span></div>
+      <div class="mech-wrap" id="mechHost"></div>
+      <div class="transport">
+        <button class="btn round" id="btnPlay" aria-label="Pause animation" title="Play / pause (space)"><span class="ic-pause"></span></button>
+        <input type="range" id="scrub" min="0" max="720" step="0.5" value="0" aria-label="Cycle angle psi">
+        <span class="scrub-val" id="scrubVal">0°</span>
+      </div>
+      <div class="transport2">
+        <label>Playback <input type="range" id="speed" min="0" max="1000" value="420" aria-label="Playback speed"> <span id="speedVal"></span></label>
+        <label class="chk"><input type="checkbox" id="chkForces" checked> force vectors</label>
+        <span class="muted small" id="slowmo"></span>
+      </div>
+      <div class="eqbox inst" id="inst" aria-live="off"></div>
+      <div class="page-no">2</div>
+    </section>
+
+    <!-- ============================================================ KINEMATICS -->
+    <section class="sheet" id="s-kin" data-title="Kinematics">
+      <div class="tag" data-tex="\mathcal{K}"></div>
+      <h2>§1&ensp;Kinematics of the Slider-Crank</h2>
+      <p class="sub">exact closed-form solution, constant crank speed <span class="tx" data-tex="\omega = 2\pi N/60"></span></p>
+      <div class="eqbox">
+        <div class="eq" data-tex="x = r\left[(1-\cos\theta) + n - \sqrt{n^{2}-\sin^{2}\theta}\,\right]"></div>
+        <div class="eq" data-tex="v=\dot x = r\omega\left[\sin\theta+\dfrac{\sin 2\theta}{2\sqrt{n^{2}-\sin^{2}\theta}}\right],\qquad a=\ddot x = r\omega^{2}\left[\cos\theta+\dfrac{n^{2}\cos 2\theta+\sin^{4}\theta}{\left(n^{2}-\sin^{2}\theta\right)^{3/2}}\right]"></div>
+        <div class="eq" data-tex="\sin\varphi=\dfrac{\sin\theta}{n},\qquad \omega_c=\dfrac{\omega\cos\theta}{\sqrt{n^{2}-\sin^{2}\theta}},\qquad \alpha_c=-\dfrac{\omega^{2}\sin\theta\,(n^{2}-1)}{\left(n^{2}-\sin^{2}\theta\right)^{3/2}}"></div>
+      </div>
+      <p>The familiar textbook forms <span class="tx" data-tex="v\approx r\omega\left(\sin\theta+\tfrac{\sin2\theta}{2n}\right)"></span> and <span class="tx" data-tex="a\approx r\omega^{2}\left(\cos\theta+\tfrac{\cos2\theta}{n}\right)"></span> come from a binomial expansion of the square root. They are plotted dashed, so you can see the error grow as <span class="tx" data-tex="n"></span> is reduced.</p>
+      <div class="fig-stack">
+        <div class="fig" id="figX"></div>
+        <div class="fig" id="figV"></div>
+        <div class="fig" id="figA"></div>
+      </div>
+      <p class="caption"><b>Fig. 2.</b> Piston displacement, velocity and acceleration over one revolution (solid: exact, dashed: approximate).</p>
+      <div class="fig-grid">
+        <div class="fig" id="figWc"></div>
+        <div class="fig" id="figAc"></div>
+      </div>
+      <p class="caption"><b>Fig. 3.</b> Angular velocity and angular acceleration of the connecting rod.</p>
+      <div class="tag" data-tex="\mathcal{K}_1"></div>
+      <div class="eqbox result" id="resKin"></div>
+      <div class="page-no">3</div>
+    </section>
+
+    <!-- ============================================================ GAS -->
+    <section class="sheet" id="s-gas" data-title="Gas pressure">
+      <div class="tag" data-tex="\mathcal{G}"></div>
+      <h2>§2&ensp;Cylinder Pressure &amp; Indicator Diagram</h2>
+      <p class="sub">single-zone first-law model with Wiebe heat release (RK4 integration, 0.25° step)</p>
+      <div class="eqbox">
+        <div class="eq" data-tex="V(\theta)=V_c+\tfrac{\pi}{4}D^{2}\,x(\theta),\qquad V_s=\tfrac{\pi}{4}D^{2}\,(2r),\qquad V_c=\dfrac{V_s}{r_c-1}"></div>
+        <div class="eq" data-tex="\dfrac{dp}{d\theta}=-\gamma\,\dfrac{p}{V}\,\dfrac{dV}{d\theta}+\dfrac{\gamma-1}{V}\,\dfrac{dQ}{d\theta},\qquad Q(\theta)=Q_{in}\left\{1-\exp\!\left[-a\left(\dfrac{\theta-\theta_0}{\Delta\theta_b}\right)^{m+1}\right]\right\},\ \ a=5,\ m=2"></div>
+        <div class="eq" data-tex="W=\oint p\,dV,\qquad p_{mi}=\dfrac{W}{V_s},\qquad P_i=W\,\dfrac{N}{120},\qquad \eta_i=\dfrac{W}{Q_{in}},\qquad Q_{in}=\text{load}\times q\,V_s\,\dfrac{p_1}{p_{atm}}"></div>
+      </div>
+      <p>Combustion starts at <span class="tx" data-tex="\theta_0 = 360^\circ-\theta_s"></span> and lasts <span class="tx" data-tex="\Delta\theta_b"></span>. Suction takes place at <span class="tx" data-tex="p_1"></span> and exhaust at <span class="tx" data-tex="1.05\,p_{atm}"></span>, and the crank-case is at <span class="tx" data-tex="p_{atm}"></span>. The net heat release at full load is <span class="tx" data-tex="q = 2.6\ \text{kJ/L}"></span> of swept volume (wall heat loss lumped in).</p>
+      <div class="fig" id="figP"></div>
+      <p class="caption"><b>Fig. 4.</b> Cylinder pressure over the four-stroke cycle.</p>
+      <div class="fig-toolbar"><label class="chk"><input type="checkbox" id="chkLog"> log–log axes</label></div>
+      <div class="fig" id="figPV"></div>
+      <p class="caption"><b>Fig. 5.</b> Indicator (<span class="tx" data-tex="p\text{–}V"></span>) diagram. The enclosed area is the indicated work per cycle; the dot follows the animation.</p>
+      <div class="tag" data-tex="\mathcal{G}_1"></div>
+      <div class="eqbox result" id="resGas"></div>
+      <div class="page-no">4</div>
+    </section>
+
+    <!-- ============================================================ FORCES -->
+    <section class="sheet" id="s-force" data-title="Force analysis">
+      <div class="tag" data-tex="\mathcal{F}"></div>
+      <h2>§3&ensp;Dynamic Force Analysis</h2>
+      <p class="sub">exact Newton–Euler equations of piston and connecting rod (rod mass and inertia included)</p>
+      <div class="eqbox">
+        <div class="eq" data-tex="F_g=(p-p_{atm})\,\tfrac{\pi}{4}D^{2},\qquad F_I=m_p\,a,\qquad F_P=F_g-m_p\,a\;\left(+\,m_p\,g\ \text{if vertical}\right)"></div>
+        <div class="eq" data-tex="m_c\,\mathbf a_G=\mathbf F_C-\mathbf F+m_c\,\mathbf g,\qquad I_G\,\ddot\beta=(\mathbf r_C-\mathbf r_P)\times\mathbf F+(\mathbf r_C-\mathbf r_G)\times m_c(\mathbf a_G-\mathbf g),\qquad I_G=m_c k_G^{2}"></div>
+        <div class="eq" data-tex="T=\big[\mathbf r_C\times(-\mathbf F_C)\big]_z,\qquad F_T=\dfrac{T}{r},\qquad F_R=\mathbf F_C\cdot\hat{\mathbf e}_r"></div>
+      </div>
+      <p>Here <span class="tx" data-tex="\mathbf F"></span> is the force of the rod on the piston (its component along the stroke is the piston effort <span class="tx" data-tex="F_P"></span>; the wall reaction is <span class="tx" data-tex="F_N"></span>). <span class="tx" data-tex="\mathbf F_C"></span> is the force of the crank pin on the rod and <span class="tx" data-tex="\beta=\pi-\varphi"></span> is the absolute angle of the rod. For a massless rod these collapse to the familiar textbook relations</p>
+      <div class="eqbox soft">
+        <div class="eq" data-tex="F_Q=\dfrac{F_P}{\cos\varphi},\quad F_N=F_P\tan\varphi,\quad F_T=F_Q\sin(\theta+\varphi),\quad F_R=F_Q\cos(\theta+\varphi),\quad T=F_P\,r\left[\sin\theta+\dfrac{\sin2\theta}{2\sqrt{n^{2}-\sin^{2}\theta}}\right]"></div>
+      </div>
+      <div class="fig" id="figF1"></div>
+      <p class="caption"><b>Fig. 6.</b> Gas force, inertia force of the piston and net piston effort.</p>
+      <div class="fig" id="figF2"></div>
+      <p class="caption"><b>Fig. 7.</b> Thrust in the connecting rod (+ compression, − tension) and side thrust on the cylinder wall.</p>
+      <div class="fig-grid">
+        <div class="fig" id="figF3"></div>
+        <div class="fig" id="figPolar"></div>
+      </div>
+      <p class="caption"><b>Fig. 8.</b> Left: crank effort <span class="tx" data-tex="F_T"></span> and radial force <span class="tx" data-tex="F_R"></span>. Right: polar load diagram of the crank pin in the crank frame, used for bearing design.</p>
+      <div class="tag" data-tex="\mathcal{F}_1"></div>
+      <div class="eqbox result" id="resForce"></div>
+      <div class="page-no">5</div>
+    </section>
+
+    <!-- ============================================================ TMD -->
+    <section class="sheet" id="s-tmd" data-title="Turning moment &amp; flywheel">
+      <div class="tag" data-tex="\mathcal{T}"></div>
+      <h2>§4&ensp;Turning-Moment Diagram &amp; Flywheel</h2>
+      <p class="sub">load torque taken constant and equal to the mean engine torque (steady state)</p>
+      <div class="eqbox">
+        <div class="eq" data-tex="T_{mean}=\dfrac{1}{4\pi}\int_{0}^{4\pi}T\,d\theta,\qquad E(\theta)=\int_{0}^{\theta}\left(T-T_{mean}\right)d\theta,\qquad \Delta E=E_{max}-E_{min}"></div>
+        <div class="eq" data-tex="\Delta E=I\,\omega^{2}C_s\;\Longrightarrow\;I=\dfrac{\Delta E}{\omega^{2}C_s},\qquad C_E=\dfrac{\Delta E}{W},\qquad \omega(\theta)\simeq\omega\left[1+\dfrac{E(\theta)-\bar E}{I\,\omega^{2}}\right]"></div>
+        <div class="eq" data-tex="m_{rim}=\dfrac{I}{R^{2}},\qquad b\,t=\dfrac{m_{rim}}{2\pi R\,\rho},\qquad v=\omega R,\qquad \sigma_t=\rho\,v^{2}\quad(\text{rim alone supplies }I)"></div>
+      </div>
+      <div class="fig" id="figT"></div>
+      <p class="caption"><b>Fig. 9.</b> Turning-moment diagram. Red areas: <span class="tx" data-tex="T>T_{mean}"></span> (flywheel speeds up); blue: <span class="tx" data-tex="T<T_{mean}"></span> (flywheel gives energy back). Gas and inertia torques are shown separately.</p>
+      <div class="fig-grid">
+        <div class="fig" id="figE"></div>
+        <div class="fig" id="figN"></div>
+      </div>
+      <p class="caption"><b>Fig. 10.</b> Left: fluctuation of energy <span class="tx" data-tex="E(\psi)"></span>; its total swing is <span class="tx" data-tex="\Delta E"></span>. Right: crankshaft speed with the designed flywheel, which stays inside the <span class="tx" data-tex="\pm C_s/2"></span> band.</p>
+      <div class="tag" data-tex="\mathcal{T}_1"></div>
+      <div class="eqbox result" id="resTmd"></div>
+      <div class="page-no">6</div>
+    </section>
+
+    <!-- ============================================================ BALANCING -->
+    <section class="sheet" id="s-bal" data-title="Balancing">
+      <div class="tag" data-tex="\mathcal{B}"></div>
+      <h2>§5&ensp;Balancing of Reciprocating Masses</h2>
+      <p class="sub">two-mass equivalent rod for the textbook terms; exact shaking force from all moving parts</p>
+      <div class="eqbox">
+        <div class="eq" data-tex="m_R=m_p+\dfrac{l_G}{l}\,m_c,\qquad m_{rot}=\Big(1-\dfrac{l_G}{l}\Big)m_c,\qquad m_B=m_{rot}+c\,m_R\ \ (\text{counterweight at radius } r)"></div>
+        <div class="eq" data-tex="F_{pri}=m_R\,\omega^{2}r\cos\theta,\qquad F_{sec}=m_R\,\omega^{2}r\,\dfrac{\cos 2\theta}{n},\qquad \mathbf F_s=-\left(m_p\,\mathbf a_P+m_c\,\mathbf a_G+m_B\,\mathbf a_B\right)"></div>
+        <div class="eq" data-tex="\text{residual primary: }\ (1-c)\,m_R\omega^{2}r\cos\theta\ \ \text{along the stroke},\qquad c\,m_R\omega^{2}r\sin\theta\ \ \text{perpendicular to it}"></div>
+      </div>
+      <div class="fig-grid">
+        <div class="fig" id="figBal1"></div>
+        <div class="fig" id="figBal2"></div>
+      </div>
+      <p class="caption"><b>Fig. 11.</b> Left: primary and secondary unbalanced forces over one revolution. Right: locus of the shaking force on the frame without reciprocating balance (<span class="tx" data-tex="c=0"></span>), with the chosen <span class="tx" data-tex="c"></span>, and with the optimum <span class="tx" data-tex="c"></span> that minimises its peak.</p>
+      <div class="tag" data-tex="\mathcal{B}_1"></div>
+      <div class="eqbox result" id="resBal"></div>
+      <div class="page-no">7</div>
+    </section>
+
+    <!-- ============================================================ SENSITIVITY -->
+    <section class="sheet" id="s-sens" data-title="Sensitivity">
+      <div class="tag" data-tex="\mathcal{S}"></div>
+      <h2>§6&ensp;What Changes When a Parameter Changes?</h2>
+      <p class="sub">local elasticities by central differences, and design-space maps</p>
+      <div class="eqbox">
+        <div class="eq" data-tex="\varepsilon_{y,x}=\dfrac{\partial\ln y}{\partial\ln x}\approx\dfrac{\ln y(1.01\,x)-\ln y(0.99\,x)}{\ln(1.01/0.99)}"></div>
+      </div>
+      <p>An elasticity of <span class="tx" data-tex="+0.8"></span> means a 1&nbsp;% increase in the parameter raises the chosen result by about 0.8&nbsp;%. Negative bars mean the result falls.</p>
+      <div class="fig-toolbar"><label>Result <select id="sensOut"></select></label></div>
+      <div class="fig" id="figSens"></div>
+      <p class="caption"><b>Fig. 12.</b> Sensitivity of the selected result to each input at the current design point.</p>
+      <div class="fig-grid">
+        <div class="fig" id="mapA"></div>
+        <div class="fig" id="mapB"></div>
+      </div>
+      <p class="caption"><b>Fig. 13.</b> Design space over crank speed <span class="tx" data-tex="N"></span> and obliquity ratio <span class="tx" data-tex="n"></span>. Left: flywheel rim mass needed for the chosen <span class="tx" data-tex="C_s"></span>. Right: change of the peak crank-pin load relative to the current design (<span class="tx" data-tex="\bigstar"></span>). Click a map to move the design there.</p>
+      <div class="page-no">8</div>
+    </section>
+
+    <!-- ============================================================ VERIFICATION -->
+    <section class="sheet" id="s-ver" data-title="Verification">
+      <div class="tag" data-tex="\mathcal{V}"></div>
+      <h2>§7&ensp;Verification of the Solver</h2>
+      <p class="sub">every result is cross-checked against an independent method</p>
+      <p><b>Benchmark A: textbook problem.</b> A horizontal engine has <span class="tx" data-tex="r=300"></span>&nbsp;mm, <span class="tx" data-tex="l=1.2"></span>&nbsp;m, <span class="tx" data-tex="D=0.5"></span>&nbsp;m, <span class="tx" data-tex="m_R=250"></span>&nbsp;kg and <span class="tx" data-tex="N=250"></span>&nbsp;rpm, with a net pressure of 0.35&nbsp;N/mm² at <span class="tx" data-tex="\theta=60^\circ"></span> from IDC. It is solved by the hand-calculation chain (approximate acceleration) and by this program's exact Newton–Euler solver.</p>
+      <div class="table-wrap"><table class="vt" id="tblBench"></table></div>
+      <p><b>Benchmark B: air-standard Otto cycle.</b> For <span class="tx" data-tex="r_c=8,\ \gamma=1.4"></span> the integrated cycle must give <span class="tx" data-tex="\eta=1-r_c^{\,1-\gamma}"></span>.</p>
+      <div class="table-wrap"><table class="vt" id="tblOtto"></table></div>
+      <p><b>Live checks on the current design</b> (recomputed on every change):</p>
+      <div class="table-wrap"><table class="vt" id="tblLive"></table></div>
+      <div class="fig" id="figVer"></div>
+      <p class="caption"><b>Fig. 14.</b> Exact turning moment against the usual textbook approximation (two-mass rod, approximate acceleration, no correction couple). The gap is the error the approximation makes for this design.</p>
+      <div class="page-no">9</div>
+    </section>
+
+    <!-- ============================================================ NOTES -->
+    <section class="sheet" id="s-notes" data-title="Notation &amp; references">
+      <div class="tag" data-tex="\mathcal{N}"></div>
+      <h2>Nomenclature, Assumptions &amp; References</h2>
+      <div class="cols">
+        <dl class="nom">
+          <dt data-tex="r,\ l,\ n"></dt><dd>crank radius, rod length, obliquity ratio <span class="tx" data-tex="l/r"></span></dd>
+          <dt data-tex="\theta,\ \psi,\ \varphi"></dt><dd>crank angle from TDC, cycle angle, rod obliquity</dd>
+          <dt data-tex="x,\ v,\ a"></dt><dd>piston displacement from TDC, velocity, acceleration</dd>
+          <dt data-tex="\omega_c,\ \alpha_c"></dt><dd>angular velocity / acceleration of the rod</dd>
+          <dt data-tex="F_g,\ F_I,\ F_P"></dt><dd>gas force, piston inertia force, piston effort</dd>
+          <dt data-tex="F_Q,\ F_N"></dt><dd>thrust in rod, side thrust on cylinder wall</dd>
+          <dt data-tex="F_T,\ F_R"></dt><dd>tangential (crank effort) and radial force on the crank pin</dd>
+          <dt data-tex="T,\ T_{mean}"></dt><dd>crankshaft turning moment, mean torque</dd>
+          <dt data-tex="\Delta E,\ C_E,\ C_s"></dt><dd>max. fluctuation of energy, coefficient of fluctuation of energy and of speed</dd>
+          <dt data-tex="I,\ m_{rim},\ b,\ t"></dt><dd>flywheel inertia, rim mass, rim width and thickness</dd>
+          <dt data-tex="m_R,\ m_{rot},\ c"></dt><dd>reciprocating and revolving equivalent masses, balance fraction</dd>
+          <dt data-tex="p_{mi},\ \eta_i"></dt><dd>indicated mean effective pressure, indicated efficiency</dd>
+        </dl>
+        <div>
+          <p><b>Assumptions.</b></p>
+          <ul class="tight">
+            <li>Rigid links, frictionless pin joints and slider; crank balanced about <span class="tx" data-tex="O"></span>.</li>
+            <li>Constant crank speed during the force analysis (standard practice; the flywheel keeps the ripple within <span class="tx" data-tex="C_s"></span>).</li>
+            <li>Gravity is included; for a horizontal engine the piston weight adds to the side thrust.</li>
+            <li>Single-zone ideal gas with constant <span class="tx" data-tex="\gamma"></span>; instantaneous gas exchange at the dead centres; crank-case at atmospheric pressure.</li>
+            <li>Flywheel inertia supplied by the rim alone (hub and arms neglected, which is conservative).</li>
+          </ul>
+          <p><b>Numerics.</b> 1440 crank positions per cycle (0.5°), RK4 for the pressure ODE, trapezoidal cycle integrals. Grid convergence of the cycle work is better than <span class="tx" data-tex="10^{-6}"></span>.</p>
+        </div>
+      </div>
+      <p><b>References.</b></p>
+      <ol class="refs">
+        <li>S.&nbsp;S.&nbsp;Rattan, <i>Theory of Machines</i>, McGraw-Hill Education: force analysis, turning-moment diagrams and flywheels, balancing.</li>
+        <li>R.&nbsp;S.&nbsp;Khurmi &amp; J.&nbsp;K.&nbsp;Gupta, <i>Theory of Machines</i>, S.&nbsp;Chand: inertia forces in reciprocating parts, turning moment diagrams.</li>
+        <li>A.&nbsp;Ghosh &amp; A.&nbsp;K.&nbsp;Mallik, <i>Theory of Mechanisms and Machines</i>, East-West Press.</li>
+        <li>J.&nbsp;J.&nbsp;Uicker, G.&nbsp;R.&nbsp;Pennock &amp; J.&nbsp;E.&nbsp;Shigley, <i>Theory of Machines and Mechanisms</i>, Oxford University Press.</li>
+        <li>J.&nbsp;B.&nbsp;Heywood, <i>Internal Combustion Engine Fundamentals</i>, McGraw-Hill: single-zone model, Wiebe function.</li>
+      </ol>
+      <p class="muted small">Source code, formulas and the automated test-suite (<code>node tests/verify.js</code>) are in the project repository. All computation runs in your browser; nothing is sent anywhere.</p>
+      <div class="page-no">10</div>
+    </section>
+  </main>
+</div>
+
+<nav class="dots" id="dots" aria-label="Sections"></nav>
+
+<div class="pip" id="pip" aria-hidden="true">
+  <div class="pip-host" id="pipHost"></div>
+  <div class="pip-bar"><button class="btn round small" id="pipPlay" aria-label="Play or pause"><span class="ic-pause"></span></button><span id="pipLabel"></span><a href="#s-mech" class="pip-link">open ↑</a><button class="pip-close" id="pipClose" aria-label="Hide the mini mechanism" title="Hide">×</button></div>
+</div>
+<button class="fab" id="fab" aria-controls="panel">Parameters</button>
+<div class="toast" id="toast" role="status"></div>
+<noscript><p class="noscript">This dashboard needs JavaScript to compute and draw the results.</p></noscript>
+</body>
+</html>
