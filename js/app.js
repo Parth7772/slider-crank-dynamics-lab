@@ -240,8 +240,12 @@
       const nx = ids[(k + (e.key === 'ArrowRight' ? 1 : ids.length - 1)) % ids.length];
       showTab(nx, false); $('#tab-' + nx).focus();
     });
+    // an old link may carry a tab name after '#': open that tab, but keep the page at the top
     const fromHash = location.hash.slice(1);
+    if (fromHash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file:// */ } }
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     showTab(pages.some((p) => p.id === fromHash) ? fromHash : activeTab, false);
+    window.scrollTo(0, 0);
     window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (document.getElementById(id) && document.getElementById(id).classList.contains('tab-page')) showTab(id, true); });
     // links inside the text that point at a tab
     document.addEventListener('click', (e) => {
@@ -259,9 +263,13 @@
       const on = b.getAttribute('aria-controls') === id;
       b.setAttribute('aria-selected', String(on));
       b.tabIndex = on ? 0 : -1;
-      if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (on) {
+        // scroll only the tab strip sideways; never move the page (the mechanism must stay first on open)
+        const bar = b.parentElement, l = b.offsetLeft, r = l + b.offsetWidth;
+        if (l < bar.scrollLeft) bar.scrollLeft = l - 8;
+        else if (r > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = r - bar.clientWidth + 8;
+      }
     }
-    try { history.replaceState(null, '', location.search + '#' + id); } catch (e) { /* file:// */ }
     if (scroll) {
       const bar = $('#tabs');
       const top = bar.getBoundingClientRect().top + window.scrollY - 58;
@@ -701,7 +709,7 @@
     loops.forEach((L, k) => {
       const hl = k === iMax || k === iMin;
       html += '<tr' + (hl ? ' class="hl"' : '') + '><td>' + pt(k) + '→' + pt(k + 1) + (L.area >= 0 ? ' (above mean)' : ' (below mean)') + '</td><td>' + L.from.toFixed(1) + '°</td><td>' + L.to.toFixed(1) + '°</td><td>' +
-        (L.area >= 0 ? '+' : MINUS) + Math.abs(L.area).toFixed(2) + '</td><td><i class="mi">E</i> ' + (L.E >= 0 ? '+ ' : MINUS + ' ') + Math.abs(L.E).toFixed(2) +
+        (L.area >= 0 ? '+' : MINUS) + Math.abs(L.area).toFixed(2) + '</td><td><i class="mi">E</i>' + (Math.abs(L.E) < 0.005 ? ' (back to start)' : (L.E >= 0 ? ' + ' : ' ' + MINUS + ' ') + Math.abs(L.E).toFixed(2)) +
         (k === iMax ? ' <b>(max)</b>' : k === iMin ? ' <b>(min)</b>' : '') + '</td></tr>';
     });
     const dE = Math.max(...Es, 0) - Math.min(...Es, 0);
@@ -970,7 +978,7 @@
       renderKPIs(); renderPlots();
     });
     $('#btnShare').addEventListener('click', async () => {
-      const url = location.origin + location.pathname + '?' + queryString() + '#' + activeTab;
+      const url = location.origin + location.pathname + '?' + queryString();
       try {
         if (navigator.share && matchMedia('(pointer: coarse)').matches) { await navigator.share({ title: document.title, url }); return; }
         await navigator.clipboard.writeText(url);

@@ -276,13 +276,13 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 
 /* ------------------------------------------------------------ picture-in-picture mechanism */
 .pip {
-  position: fixed; right: 44px; bottom: 22px; width: 300px; background: var(--paper); color: var(--ink); z-index: 45;
+  position: fixed; right: 18px; bottom: 18px; width: 210px; background: var(--paper); color: var(--ink); z-index: 45;
   box-shadow: 0 10px 34px rgba(0, 0, 0, .55); padding: 6px 8px 8px; transform: translateY(14px); opacity: 0; pointer-events: none;
   transition: opacity .2s, transform .2s;
 }
 .pip.show { opacity: 1; transform: none; pointer-events: auto; }
-.pip-host .mech-svg { max-height: 150px; }
-.pip-host .mech-svg.vertical { height: 190px; max-height: 190px; }
+.pip-host .mech-svg { max-height: 110px; }
+.pip-host .mech-svg.vertical { height: 150px; max-height: 150px; }
 .pip-bar { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .pip-bar span { flex: 1; }
 .pip-link { color: var(--red); text-decoration: none; font-size: .82rem; }
