@@ -4,19 +4,23 @@
 
 **Live dashboard:** https://parth7772.github.io/slider-crank-dynamics-lab/
 
-Change any parameter of the engine (bore, crank radius, l/r ratio, masses, speed, combustion, flywheel, balance fraction) and every result updates instantly: the animated mechanism, kinematics, gas pressure, forces, turning-moment diagram, flywheel size, balancing, sensitivities and design-space maps. *Share link* copies a URL that reopens the exact configuration.
+The page opens on the animated mechanism with the parameters right next to it (bore, crank radius, l/r ratio, masses, speed, load, flywheel, balance fraction, combustion). Change any of them and every result updates instantly. *Share link* copies a URL that reopens the exact configuration and tab.
 
-## What is analysed
+## Tabs
 
-| § | Topic | What is computed |
-|---|-------|------------------|
-| 1 | Kinematics | exact piston displacement, velocity, acceleration; rod angular velocity and acceleration; error of the approximate (binomial) formulas |
-| 2 | Gas pressure | single-zone first-law model with Wiebe heat release (RK4), or the ideal Otto cycle; indicator diagram, indicated work, imep, power, efficiency |
-| 3 | Dynamic force analysis | exact Newton–Euler solution of piston and connecting rod (rod mass and moment of inertia included): gas force, inertia force, piston effort, rod thrust, side thrust, crank effort, radial force, crank-pin polar load diagram |
-| 4 | Turning-moment diagram and flywheel | mean torque, fluctuation of energy E(θ), ΔE, C_E, flywheel inertia for a given C_s, rim mass and section, rim speed and hoop stress, resulting speed ripple |
-| 5 | Balancing | primary and secondary unbalanced forces, exact shaking-force locus with a counterweight balancing a fraction c of the reciprocating mass, optimum c |
-| 6 | Sensitivity | elasticity of every result to every input (central differences) and N–n design-space maps |
-| 7 | Verification | benchmarks and live self-consistency checks (below) |
+Each tab starts with a short plain-language "What the results say" box, then the plots, then the equations used.
+
+| Tab | What it shows |
+|-----|---------------|
+| Step-by-step | the textbook procedure at any crank angle, with your numbers substituted: ω, φ, x, v, a, m_R, F_g, F_I, F_P, F_Q, F_N, F_T, F_R, T₁, correction couple T_c, rod-weight torque T_w and net T (checked against the exact solver) |
+| Kinematics | velocity and acceleration diagrams (relative velocity method) drawn to scale and moving with the animation; exact piston displacement, velocity, acceleration; rod angular velocity and acceleration; error of the approximate formulas |
+| Gas pressure | single-zone first-law model with Wiebe heat release (RK4), or the ideal Otto cycle; indicator diagram, indicated work, imep, power, efficiency |
+| Forces | exact Newton–Euler solution of piston and rod (rod mass and inertia included): gas force, inertia force, piston effort, rod thrust, side thrust, crank effort, radial force, crank-pin polar load diagram |
+| Turning moment & flywheel | turning-moment diagram, table of loop areas between crossings of T_mean (textbook method), ΔE, C_E, flywheel inertia for a given C_s, rim size, rim speed and hoop stress, speed ripple |
+| Balancing | primary and secondary unbalanced forces, shaking-force locus with a counterweight balancing a fraction c of the reciprocating mass, optimum c |
+| What-if | elasticity of every result to every input, and N–n design-space maps |
+| Verification | benchmarks and live self-consistency checks (below) |
+| Problem & notation | problem statement, live data, nomenclature, assumptions, references |
 
 ## Key equations
 
@@ -28,7 +32,7 @@ Change any parameter of the engine (bore, crank radius, l/r ratio, masses, speed
 
 ## Verification (`node tests/verify.js`)
 
-35 automated checks, all passing:
+51 automated checks, all passing:
 
 1. **Textbook problem.** For a horizontal engine (r = 300 mm, l = 1.2 m, D = 0.5 m, m_R = 250 kg, 250 rpm, Δp = 0.35 N/mm² at θ = 60°), the hand-calculation chain and the exact solver agree within 0.03 % (F_N = 10.96 kN, F_Q = 50.65 kN, F_T = 48.30 kN, T = 14.49 kN·m).
 2. **Otto cycle.** The numerically integrated cycle reproduces η = 1 − r_c^{1−γ} to 5 × 10⁻⁶.
@@ -38,8 +42,11 @@ Change any parameter of the engine (bore, crank radius, l/r ratio, masses, speed
 6. **Inertia forces.** They do no net work over a cycle (10⁻¹⁶).
 7. **Massless rod.** It reduces exactly to the textbook relations F_N = F_P tan φ, F_Q = F_P / cos φ, F_T = F_Q sin(θ + φ).
 8. **Flywheel.** The designed flywheel reproduces the requested C_s.
+9. **Textbook two-mass rod with correction couple.** With the exact acceleration it gives the same crank torque as Newton–Euler (10⁻¹⁵).
+10. **Turning-moment loop table.** The loop areas reproduce ΔE and sum to zero over the cycle.
+11. **Acceleration polygon.** It closes: a_C + a^r_PC + a^t_PC = a_P.
 
-The same checks also run live on the dashboard (§7) for whatever design is on screen.
+The same checks also run live on the dashboard (Verification tab) for whatever design is on screen.
 
 ## Run locally
 
