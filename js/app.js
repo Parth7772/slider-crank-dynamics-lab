@@ -41,6 +41,31 @@
     { g: 'Combustion (advanced)', k: 'soc', tex: '\\theta_s', name: 'Start of combustion, before TDC', unit: '°', min: 0, max: 40, step: 0.5, dp: 1 },
     { g: 'Combustion (advanced)', k: 'dur', tex: '\\Delta\\theta_b', name: 'Combustion duration', unit: '°', min: 10, max: 100, step: 1, dp: 0 },
   ];
+  // one-line explanations shown when hovering a parameter name
+  const TIPS = {
+    bore: 'Cylinder diameter. Gas force grows with D².',
+    r: 'Crank radius = half the stroke. Sets piston speed and the torque arm.',
+    n: 'Connecting-rod length divided by crank radius (obliquity ratio), usually 3.5–4.5.',
+    N: 'Engine speed. Inertia forces grow with N².',
+    load: 'How much fuel is burnt each cycle (100 % = full load).',
+    orient: 'Vertical: weight acts along the stroke. Horizontal: weight acts across it.',
+    mp: 'Mass that moves in a straight line with the piston.',
+    mc: 'Total mass of the connecting rod.',
+    lG: 'Where the rod centre of mass is, measured from the crank pin, as a fraction of rod length.',
+    kG: 'Radius of gyration of the rod about its centre of mass, as a fraction of rod length.',
+    Cs: '(Maximum − minimum speed) / mean speed allowed. Smaller needs a heavier flywheel.',
+    Dfw: 'Mean diameter of the flywheel rim. Larger rim = less mass for the same inertia, but higher rim speed.',
+    rho: 'Rim material: sets the rim mass and the safe peripheral speed.',
+    bt: 'Shape of the rim cross-section (width b / thickness t).',
+    cbal: 'Part of the reciprocating mass balanced by the crank counterweight (0 = none, 1 = all).',
+    model: 'How the cylinder pressure is calculated.',
+    CR: 'Total cylinder volume / clearance volume.',
+    pin: 'Absolute pressure during suction (1 bar = naturally aspirated, more = turbocharged).',
+    gamma: 'Ratio of specific heats cp/cv of the gas (about 1.3 for burnt gases).',
+    soc: 'Crank angle before TDC at which burning starts (spark or injection timing).',
+    dur: 'Number of crank degrees over which the fuel burns.',
+  };
+  for (const s of SPEC) s.tip = TIPS[s.k];
   const SPEC_BY = Object.fromEntries(SPEC.map((s) => [s.k, s]));
   const V_SAFE = { 7250: 30, 7850: 50 };
 
@@ -158,7 +183,7 @@
     const sym = h('span', { class: 'ctl-sym' });
     sym.innerHTML = tex(s.tex);
     const row = h('div', { class: 'ctl', 'data-k': s.k });
-    const head = h('div', { class: 'ctl-head' }, sym, h('span', { class: 'ctl-name' }, s.name));
+    const head = h('div', { class: 'ctl-head' }, sym, h('span', { class: 'ctl-name', title: s.tip || null }, s.name));
     if (s.type === 'select') {
       const sel = h('select', { 'aria-label': s.name });
       for (const [v, lab] of s.options) sel.append(h('option', { value: String(v) }, lab));
@@ -276,7 +301,7 @@
       if (window.scrollY > top) window.scrollTo({ top, behavior: 'auto' });
     }
     lastI = -1;
-    if (id === 'sensitivity' && sens) drawSens();
+    if (R && dirtyTabs.has(id)) renderTab(id);
   }
 
   /* ================================================================ plots */
@@ -460,15 +485,20 @@
     { tex: '|F_N|_{max}', lab: 'Max. side thrust on wall', f: (s) => s.FnMax / 1000, u: 'kN', x: (s) => 'crank pin ' + fmtVal(s.pinMax / 1000, 3) + ' kN' },
     { tex: 'F_{s,max}', lab: 'Max. shaking force on frame', f: (s) => s.shMax / 1000, u: 'kN', x: (s) => 'optimum $c$ = ' + s.cOpt.toFixed(2) },
   ];
+  const KPI_GROUPS = ['Power & torque', 'Flywheel', 'Pressure & piston motion', 'Forces'];
   const kpiRefs = [];
   function buildKPIs() {
     const host = $('#kpis');
-    for (const k of KPIS) {
-      const v = h('span', { class: 'v' }), x = h('div', { class: 'kpi-x' }), d = h('span', { class: 'delta' });
-      const sym = h('div', { class: 'kpi-sym' }); sym.innerHTML = tex(k.tex);
-      host.append(h('div', { class: 'kpi' }, sym, h('div', { class: 'kpi-val' }, v, h('span', { class: 'u' }, k.u)), h('div', { class: 'kpi-lab' }, k.lab), x, d));
-      kpiRefs.push({ k, v, x, d });
-    }
+    KPI_GROUPS.forEach((title, gi) => {
+      const grp = h('div', { class: 'kgrp' }, h('div', { class: 'kgrp-h' }, title));
+      for (const k of KPIS.slice(gi * 3, gi * 3 + 3)) {
+        const v = h('span', { class: 'v' }), x = h('div', { class: 'kpi-x' }), d = h('span', { class: 'delta' });
+        const sym = h('div', { class: 'kpi-sym' }); sym.innerHTML = tex(k.tex);
+        grp.append(h('div', { class: 'kpi' }, sym, h('div', { class: 'kpi-val' }, v, h('span', { class: 'u' }, k.u)), h('div', { class: 'kpi-lab' }, k.lab), x, d));
+        kpiRefs.push({ k, v, x, d });
+      }
+      host.append(grp);
+    });
   }
   function renderKPIs() {
     const s = R.summary, b = base && base.summary;
@@ -501,7 +531,26 @@
     ].filter(Boolean);
     $('#dataLine').innerHTML = items.map((t) => '<span>' + tex(t) + '</span>').join('');
   }
+  // Only the open tab is typeset after each change; the others are marked dirty and
+  // rendered when opened (KaTeX typesetting is the expensive part of an update).
+  let renderOnly = null;
+  const dirtyTabs = new Set();
+  const TAB_IDS = () => [...document.querySelectorAll('.tab-page')].map((p) => p.id);
+  const wanted = (sel) => { if (!renderOnly) return true; const pg = $(sel).closest('.tab-page'); return !pg || pg.id === renderOnly; };
+  function renderTab(id) {
+    if (!R) return;
+    dirtyTabs.delete(id);
+    renderOnly = id;
+    if (['kinematics', 'pressure', 'forces', 'flywheel', 'balancing'].includes(id)) { renderResults(); renderObservations(); }
+    if (id === 'flywheel') renderLoops();
+    if (id === 'solution') renderSolution();
+    if (id === 'verification') renderVerification();
+    if (id === 'theory') renderDataLine();
+    if (id === 'sensitivity') scheduleSlow();
+    renderOnly = null;
+  }
   function resBox(id, items) {
+    if (!wanted(id)) return;
     $(id).innerHTML = items.filter(Boolean).map((it) => {
       const [t, cls] = Array.isArray(it) ? it : [it, ''];
       return '<span class="ri ' + cls + '">' + tex(t) + '</span>';
@@ -527,8 +576,7 @@
       `W=\\oint p\\,dV=${nf(s.Wpdv)}\\ \\text{J}`, `p_{mi}=${nf(s.imep / 1e5)}\\ \\text{bar}`, `P_i=${nf(s.P / 1000)}\\ \\text{kW}`,
       burns ? `\\eta_i=${nf(s.eta * 100, 3)}\\,\\%\\ \\ (\\eta_{Otto}=${nf(s.etaOtto * 100, 3)}\\,\\%)` : null,
     ]);
-    let FgMax = 0; for (let i = 0; i < M; i++) FgMax = Math.max(FgMax, R.Fg[i]);
-    R.FgMax = FgMax;
+    const FgMax = R.FgMax;
     resBox('#resForce', [
       `F_{g,max}=${nf(FgMax / 1e3)}\\ \\text{kN}`,
       `F_{Q,max}=${nf(s.FqMax / 1e3)}\\ \\text{kN (comp.)}`,
@@ -563,6 +611,7 @@
 
   /* ================================================================ plain-language observations */
   function obs(id, items) {
+    if (!wanted(id)) return;
     $(id).innerHTML = '<div class="obs-h">What the results say</div><ul>' + items.filter(Boolean).map((t) => '<li>' + t + '</li>').join('') + '</ul>';
   }
   const rh = richHTML;
@@ -745,10 +794,26 @@
   }
 
   /* ================================================================ sensitivity & maps */
-  let slowT = null, mapId = 0, worker = null;
+  // The "What-if" analysis (22 extra cycle solutions + 1040 for the maps) runs in a Web Worker,
+  // only while that tab is open, and is debounced so dragging a slider stays smooth.
+  let slowT = null, mapId = 0, sensId = 0, worker = null, slowFor = '';
   function scheduleSlow() {
     clearTimeout(slowT);
-    slowT = setTimeout(() => { sens = E.sensitivity(params); drawSens(); runMaps(); }, 160);
+    slowT = setTimeout(runSlow, 160);
+  }
+  function runSlow() {
+    slowFor = queryString();
+    const id = ++sensId;
+    if (worker) worker.postMessage({ type: 'sens', id, p: Object.assign({}, params) });
+    else setTimeout(() => { if (id === sensId) { sens = E.sensitivity(params); drawSens(); } }, 0);
+    runMaps();
+  }
+  // used before printing: make sure the What-if results belong to the current design
+  function runSlowSync() {
+    if (slowFor === queryString() && sens && plots.mapA.data) return;
+    slowFor = queryString();
+    sens = E.sensitivity(params); drawSens();
+    runMaps(true);
   }
   function drawSens() {
     if (!sens) return;
@@ -762,19 +827,25 @@
     if (new URLSearchParams(location.search).has('noworker')) return;   // debug: compute maps on the main thread
     try {
       worker = new Worker('js/worker.js');
-      worker.onmessage = (e) => onMap(e.data);
-      worker.onerror = (e) => { if (e.preventDefault) e.preventDefault(); worker = null; runMaps(); };
+      worker.onmessage = (e) => {
+        const d = e.data;
+        if (d.type === 'sens') { if (d.id === sensId) { sens = d.sens; drawSens(); } }
+        else onMap(d);
+      };
+      worker.onerror = (e) => { if (e.preventDefault) e.preventDefault(); worker = null; runSlow(); };
     } catch (e) { worker = null; }
   }
-  function runMaps() {
+  function runMaps(sync) {
     const N0 = +params.N, n0 = +params.n;
     const job = {
-      id: ++mapId, p: Object.assign({}, params), nx: 44, ny: 30,
+      id: ++mapId, p: Object.assign({}, params), nx: 40, ny: 26,
       Nlo: Math.max(30, N0 / 4), Nhi: Math.min(30000, N0 * 4),
       nlo: Math.max(1.4, Math.min(2.5, n0 - 0.4)), nhi: Math.max(8, n0 + 0.4),
     };
-    if (worker) worker.postMessage(job);
-    else setTimeout(() => { if (job.id === mapId) onMap(Object.assign({ id: job.id }, E.designMap(job.p, job.nx, job.ny, job.Nlo, job.Nhi, job.nlo, job.nhi))); }, 30);
+    const local = () => onMap(Object.assign({ id: job.id }, E.designMap(job.p, job.nx, job.ny, job.Nlo, job.Nhi, job.nlo, job.nhi)));
+    if (sync) local();
+    else if (worker) worker.postMessage(job);
+    else setTimeout(() => { if (job.id === mapId) local(); }, 30);
   }
   function onMap(d) {
     if (d.id !== mapId || !R) return;
@@ -803,7 +874,7 @@
     pend = true;
     requestAnimationFrame(() => { pend = false; compute(); });
   }
-  let mech = null, pipMech = null, polys = null;
+  let mech = null, pipMech = null, polys = null, tabT = null, booted = false;
   function compute() {
     const t0 = performance.now();
     R = E.solve(params);
@@ -812,13 +883,18 @@
     const s = R.summary;
     let fs = 0, pmin = Infinity;
     for (let i = 0; i < s.M; i++) { fs = Math.max(fs, Math.abs(R.Fp[i]), Math.abs(R.Fn[i]), Math.abs(R.Ft[i]), Math.abs(R.Fr[i])); pmin = Math.min(pmin, R.P[i]); }
-    R.Fscale = fs; R.pmin = pmin;
+    let FgMax = 0; for (let i = 0; i < s.M; i++) FgMax = Math.max(FgMax, R.Fg[i]);
+    R.Fscale = fs; R.pmin = pmin; R.FgMax = FgMax;
     mech.setGeometry(R.c, params);
     pipMech.setGeometry(R.c, params);
-    renderKPIs(); renderDataLine(); renderResults(); renderObservations(); renderPlots(); renderVerification(); renderLoops(); renderSolution();
-    scheduleSlow();
+    renderKPIs(); renderPlots();
+    for (const id of TAB_IDS()) dirtyTabs.add(id);
+    // typeset the open tab once the slider settles: the drawing, plots and numbers above update every frame
+    clearTimeout(tabT);
+    if (!booted) { renderTab(activeTab); booted = true; } else tabT = setTimeout(() => renderTab(activeTab), 120);
     updateSpeedLabel();
-    $('#perf').textContent = 'Full cycle solved in ' + (t1 - t0).toFixed(1) + ' ms (' + s.M + ' crank positions, exact Newton–Euler).';
+    const t2 = performance.now();
+    $('#perf').textContent = 'Cycle solved in ' + (t1 - t0).toFixed(1) + ' ms, page updated in ' + (t2 - t0).toFixed(0) + ' ms (' + s.M + ' crank positions, exact Newton–Euler).';
     lastI = -1;
     renderFrame();
   }
@@ -826,18 +902,30 @@
   /* ================================================================ animation */
   const strokeOf = (psi) => (psi < 180 ? 'Suction stroke' : psi < 360 ? 'Compression stroke' : psi < 540 ? 'Power stroke' : 'Exhaust stroke');
   const INST = [
-    ['\\theta', 'th', '°'], ['x', 'x', 'mm'], ['v', 'v', 'm/s'], ['a', 'a', 'm/s²'], ['\\varphi', 'phi', '°'], ['\\omega_c', 'omc', 'rad/s'],
-    ['\\alpha_c', 'alc', 'rad/s²'], ['p', 'p', 'bar'], ['F_g', 'Fg', 'kN'], ['F_I', 'Fi', 'kN'], ['F_P', 'Fp', 'kN'], ['F_Q', 'Fq', 'kN'],
-    ['F_N', 'Fn', 'kN'], ['F_T', 'Ft', 'kN'], ['F_R', 'Fr', 'kN'], ['T', 'T', 'N·m'], ['E', 'E', 'J'], ['N_{fw}', 'Nf', 'rpm'],
+    ['Motion', [
+      ['\\theta', 'th', '°', 'crank angle'], ['x', 'x', 'mm', 'piston displacement'], ['v', 'v', 'm/s', 'piston velocity'],
+      ['a', 'a', 'm/s²', 'piston acceleration'], ['\\varphi', 'phi', '°', 'rod angle'], ['\\omega_c', 'omc', 'rad/s', 'rod angular velocity'],
+      ['\\alpha_c', 'alc', 'rad/s²', 'rod angular accel.']]],
+    ['Forces', [
+      ['p', 'p', 'bar', 'cylinder pressure'], ['F_g', 'Fg', 'kN', 'gas force'], ['F_I', 'Fi', 'kN', 'piston inertia force'],
+      ['F_P', 'Fp', 'kN', 'piston effort'], ['F_Q', 'Fq', 'kN', 'force in rod'], ['F_N', 'Fn', 'kN', 'side thrust'],
+      ['F_T', 'Ft', 'kN', 'crank effort'], ['F_R', 'Fr', 'kN', 'radial force']]],
+    ['Torque & speed', [
+      ['T', 'T', 'N·m', 'turning moment'], ['T_{mean}', 'Tm', 'N·m', 'mean (load) torque'], ['E', 'E', 'J', 'energy above start'],
+      ['N_{fw}', 'Nf', 'rpm', 'speed with flywheel']]],
   ];
   const instRefs = {};
   function buildInst() {
     const host = $('#inst');
-    for (const [t, k, u] of INST) {
-      const sym = h('span', { class: 's' }); sym.innerHTML = tex(t);
-      const v = h('span');
-      host.append(h('div', { class: 'it' }, sym, h('span', { class: 'v' }, v, h('small', null, u))));
-      instRefs[k] = v;
+    for (const [title, rows] of INST) {
+      const grp = h('div', { class: 'igrp' }, h('div', { class: 'igrp-h' }, title));
+      for (const [t, k, u, name] of rows) {
+        const sym = h('span', { class: 's' }); sym.innerHTML = tex(t);
+        const v = h('span');
+        grp.append(h('div', { class: 'it' }, h('span', { class: 'nm' }, name), sym, h('span', { class: 'v' }, v, h('small', null, u))));
+        instRefs[k] = v;
+      }
+      host.append(grp);
     }
   }
   const POLY_ROWS = [
@@ -875,11 +963,12 @@
     else if (psi < 180) gas = 'rgba(31,119,180,0.10)';
     else if (psi >= 540) gas = 'rgba(110,110,110,0.17)';
     else { const t = (R.P[i] - R.pmin) / ((s.pmax - R.pmin) || 1); gas = 'rgba(163,20,42,' + (0.06 + 0.55 * Math.sqrt(Math.max(0, t))).toFixed(3) + ')'; }
-    const st = { th, gasColor: gas, cbal: +params.cbal, showForces, Fscale: R.Fscale, F: { Fp: R.Fp[i], Fn: R.Fn[i], Ft: R.Ft[i], Fr: R.Fr[i] } };
-    if (heroOn) mech.update(st);
+    const st = { th, gasColor: gas, cbal: +params.cbal, showForces, Fscale: R.Fscale, pBar: params.model === 'none' ? null : R.pBar[i], F: { Fp: R.Fp[i], Fn: R.Fn[i], Ft: R.Ft[i], Fr: R.Fr[i] } };
+    const showHero = heroOn || printMode;
+    if (showHero) mech.update(st);
     if (pipOn) pipMech.update(st);
     for (const p of cursorPlots) p.setCursor(i);
-    if (heroOn) {
+    if (showHero) {
       const V = instRefs;
       V.th.textContent = fx(psi % 360, 1);
       V.x.textContent = fx(R.x[i] * 1e3, 2);
@@ -889,7 +978,7 @@
       V.p.textContent = fx(R.pBar[i], 2);
       V.Fg.textContent = f4(R.Fg[i] / 1e3); V.Fi.textContent = f4(R.Fi[i] / 1e3); V.Fp.textContent = f4(R.Fp[i] / 1e3);
       V.Fq.textContent = f4(R.Fq[i] / 1e3); V.Fn.textContent = f4(R.Fn[i] / 1e3); V.Ft.textContent = f4(R.Ft[i] / 1e3); V.Fr.textContent = f4(R.Fr[i] / 1e3);
-      V.T.textContent = f4(R.T[i]); V.E.textContent = f4(R.E[i]); V.Nf.textContent = R.Nfly[i].toFixed(1);
+      V.T.textContent = f4(R.T[i]); V.Tm.textContent = f4(s.Tmean); V.E.textContent = f4(R.E[i]); V.Nf.textContent = R.Nfly[i].toFixed(1);
       $('#scrub').value = psi;
       $('#scrubVal').textContent = psi.toFixed(1) + '°';
       $('#strokeName').textContent = strokeOf(psi);
@@ -897,7 +986,7 @@
     }
     $('#pipLabel').textContent = strokeOf(psi).replace(' stroke', '') + ' · ψ ' + psi.toFixed(0) + '°';
     // velocity & acceleration polygons (only while the Kinematics tab is open)
-    if (activeTab === 'kinematics') {
+    if (activeTab === 'kinematics' || printMode) {
       const S = Math.sin(th), C = Math.cos(th), root = Math.sqrt(c.n * c.n - S * S), w = c.w;
       const omc = R.omc[i], alc = R.alc[i];
       const vC = [-c.R * w * S, c.R * w * C], vP = [-R.v[i], 0];
@@ -936,7 +1025,7 @@
   }
 
   /* ================================================================ chrome */
-  let pipOn = false, heroOn = true;
+  let pipOn = false, heroOn = true, printMode = false;
   function initChrome() {
     const pip = $('#pip');
     let pipClosed = false;
@@ -947,10 +1036,14 @@
       lastI = -1;
     };
     new IntersectionObserver((es) => {
-      const e = es[es.length - 1];
-      heroOn = e.isIntersecting;
-      setPip(!e.isIntersecting && e.boundingClientRect.top < 0);
+      heroOn = es[es.length - 1].isIntersecting;
+      lastI = -1;
     }, { threshold: 0.05 }).observe($('#mechHost'));
+    // the mini view appears only once the whole top section (drawing, readouts, results) is scrolled past
+    new IntersectionObserver((es) => {
+      const e = es[es.length - 1];
+      setPip(!e.isIntersecting && e.boundingClientRect.top < 0);
+    }).observe($('#s-mech'));
     $('#pipClose').addEventListener('click', () => { pipClosed = true; setPip(false); });
     $('#pipTop').addEventListener('click', (e) => { e.preventDefault(); window.scrollTo({ top: 0 }); });
     // on narrow screens a button brings the (inline) parameters back into view
@@ -987,12 +1080,38 @@
     });
     $('#btnCSV').addEventListener('click', downloadCSV);
     $('#btnPrint').addEventListener('click', () => window.print());
+    // printing = a complete report: every tab typeset, every plot drawn, What-if computed now
     window.addEventListener('beforeprint', () => {
+      printMode = true;
+      window.Plotter.forceDraw = true;
       document.body.classList.add('printing');
+      for (const id of TAB_IDS()) if (dirtyTabs.has(id) && id !== 'sensitivity') renderTab(id);
+      dirtyTabs.delete('sensitivity');
       for (const pg of document.querySelectorAll('.tab-page')) pg.hidden = false;
+      runSlowSync();
       for (const p of allPlots) { p.visible = true; p.resize(); }
+      lastI = -1; renderFrame();
+      // Chrome can drop large canvases when printing, so print a flattened image of every plot instead
+      for (const old of document.querySelectorAll('.print-img')) old.remove();
+      for (const p of allPlots) {
+        const cvs = p.el.querySelectorAll('canvas');
+        if (!cvs.length || !cvs[0].width) continue;
+        const tmp = document.createElement('canvas');
+        tmp.width = cvs[0].width; tmp.height = cvs[0].height;
+        const g = tmp.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, tmp.width, tmp.height);
+        for (const cv of cvs) g.drawImage(cv, 0, 0);
+        const img = h('img', { class: 'print-img', alt: '', src: tmp.toDataURL('image/png') });
+        img.style.width = cvs[0].style.width;
+        p.el.append(img);
+      }
     });
-    window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); showTab(activeTab, false); });
+    window.addEventListener('afterprint', () => {
+      printMode = false; window.Plotter.forceDraw = false;
+      for (const old of document.querySelectorAll('.print-img')) old.remove();
+      document.body.classList.remove('printing');
+      showTab(activeTab, false);
+    });
 
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();

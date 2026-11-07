@@ -4,6 +4,8 @@
 
 **Live dashboard:** https://parth7772.github.io/slider-crank-dynamics-lab/
 
+**Report (PDF, 18 pages):** [report/Slider-Crank-Dynamic-Analysis.pdf](report/Slider-Crank-Dynamic-Analysis.pdf). It is the complete analysis of the default engine (problem statement, mechanism, kinematics, pressure, forces, turning-moment diagram and flywheel, balancing, step-by-step solution, what-if study, verification). The *Print* button produces the same report for any other design.
+
 The page opens on the animated mechanism with the parameters right next to it (bore, crank radius, l/r ratio, masses, speed, load, flywheel, balance fraction, combustion). Change any of them and every result updates instantly. *Share link* copies a URL that reopens the exact configuration and tab.
 
 ## Tabs
@@ -47,6 +49,12 @@ Each tab starts with a short plain-language "What the results say" box, then the
 11. **Acceleration polygon.** It closes: a_C + a^r_PC + a^t_PC = a_P.
 
 The same checks also run live on the dashboard (Verification tab) for whatever design is on screen.
+
+## Performance
+
+* One full cycle (1440 crank positions, exact Newton–Euler, RK4 pressure model) solves in about 3–5 ms.
+* While a slider is dragged, only the drawing, plots and headline numbers update every frame (about 10–16 ms per update). The equations of the open tab are typeset once the slider settles, and hidden tabs are rendered only when opened.
+* The What-if tab (22 extra cycle solutions plus about 1000 for the design maps) runs in a Web Worker, only while that tab is open.
 
 ## Run locally
 

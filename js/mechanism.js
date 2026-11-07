@@ -152,6 +152,7 @@
         return t;
       };
       if (!this.mini) {
+        this.lGas = el('text', { class: 'mech-gasl', 'text-anchor': 'middle' }, Lb);
         this.lO = lab('O'); this.lC = lab('C'); this.lP = lab('P'); this.lG = lab('G', null, 'mech-label small');
         this.lTh = lab('θ'); this.lPhi = lab('φ'); this.lX = lab('x'); this.lW = lab('ω');
         this.lStroke = lab('2r');
@@ -236,6 +237,14 @@
 
       if (!this.mini) {
         const at = (t, p, dx, dy) => { t.setAttribute('x', f(p[0] + dx)); t.setAttribute('y', f(p[1] + dy)); };
+        // live cylinder pressure written inside the gas space when there is room
+        const gl = (xH - crown) * k;
+        const room = this.vertical ? gl > 22 && D * k > 80 : gl > 84;
+        if (room && s.pBar != null) {
+          at(this.lGas, map((crown + xH) / 2, 0), 0, 5);
+          this.lGas.textContent = 'p = ' + s.pBar.toFixed(1) + ' bar';
+          this.lGas.style.display = '';
+        } else this.lGas.style.display = 'none';
         // labels sit away from the links
         const away = (p, dirx, diry, d) => { const len = Math.hypot(dirx, diry) || 1; return [p[0] + dirx / len * d, p[1] + diry / len * d]; };
         const cdir = [Cp[0] - O[0], Cp[1] - O[1]];

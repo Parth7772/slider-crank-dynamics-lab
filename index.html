@@ -30,6 +30,7 @@
   </a>
   <div class="tb-actions">
     <button class="btn ghost" id="btnBaseline" title="Freeze the current design so every change is compared against it">Pin baseline</button>
+    <a class="btn ghost" id="btnReport" href="report/Slider-Crank-Dynamic-Analysis.pdf" target="_blank" rel="noopener" title="Complete analysis of the default engine as a PDF report">Report PDF</a>
     <button class="btn ghost hide-sm" id="btnCSV" title="Download the full cycle table as CSV">CSV</button>
     <button class="btn ghost hide-sm" id="btnPrint" title="Print or save everything as PDF">Print</button>
     <button class="btn primary" id="btnShare" title="Copy a link that opens this exact configuration">Share link</button>
@@ -54,9 +55,15 @@
     <section class="sheet hero" id="s-mech" aria-label="Mechanism in motion">
       <div class="tag" data-tex="\mathcal{M}"></div>
       <h1>Slider–Crank Mechanism of an IC Engine</h1>
-      <p class="sub">Single-cylinder four-stroke engine, drawn to scale from your parameters. Red arrows are the forces at this instant, the grey sector is the counterweight and the gas colour follows the cylinder pressure.</p>
+      <p class="sub">Dynamic analysis of a single-cylinder four-stroke engine. The drawing is to scale and every number on this page is recalculated from first principles whenever a parameter changes.</p>
+      <ol class="howto" aria-label="How to use">
+        <li><b>1</b>Change a parameter or pick a preset</li>
+        <li><b>2</b>Watch the mechanism; pause or drag the angle slider</li>
+        <li><b>3</b>Open a tab below for the full analysis</li>
+      </ol>
       <div class="mech-head"><span id="strokeName" class="stroke-name">&nbsp;</span><span id="psiLabel" class="psi-label"></span></div>
       <div class="mech-wrap" id="mechHost"></div>
+      <p class="mech-key"><span><i class="mi">O</i> crank centre</span><span><i class="mi">C</i> crank pin</span><span><i class="mi">P</i> piston (gudgeon) pin</span><span><i class="mi">G</i> rod centre of mass</span><span><i class="mi">θ</i> crank angle, <i class="mi">φ</i> rod angle</span><span class="r">red arrows: <i class="mi">F<sub>P</sub></i> piston effort, <i class="mi">F<sub>N</sub></i> side thrust, <i class="mi">F<sub>T</sub></i> crank effort, <i class="mi">F<sub>R</sub></i> radial force</span><span>grey sector: counterweight</span></p>
       <div class="transport">
         <button class="btn round" id="btnPlay" aria-label="Pause animation" title="Play / pause (space)"><span class="ic-pause"></span></button>
         <input type="range" id="scrub" min="0" max="720" step="0.5" value="0" aria-label="Cycle angle psi">

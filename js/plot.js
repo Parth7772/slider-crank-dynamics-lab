@@ -206,7 +206,7 @@
     }
     draw() {
       if (!this.W) return;
-      if (!this.visible) { this.dirty = true; return; }   // redraw lazily when scrolled into view
+      if (!this.visible && !root.Plotter.forceDraw) { this.dirty = true; return; }   // redraw lazily when scrolled into view (always when printing)
       this.dirty = false;
       const o = this.o, ctx = this.cv.getContext('2d');
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -227,11 +227,20 @@
           if (b.label && c - a > 46) drawRich(ctx, b.label, (a + c) / 2, pt + 13, 10.5, 'center', '#6b6b6b');
         }
       }
+      const xt = o.xticks ? { ticks: o.xticks, step: o.xticks[1] - o.xticks[0] } : o.xlog ? { ticks: logTicks(L.x0, L.x1), step: 1 } : linTicks(L.x0, L.x1, Math.max(3, Math.round((pr - pl) / 80)));
+      const yt = o.ylog ? { ticks: logTicks(L.y0, L.y1), step: 1 } : linTicks(L.y0, L.y1, Math.max(3, Math.round((pb - pt) / 42)));
       ctx.save();
       ctx.beginPath(); ctx.rect(pl, pt, pr - pl, pb - pt); ctx.clip();
+      // light grid makes values easier to read off
+      if (o.grid !== false) {
+        ctx.strokeStyle = '#ececec'; ctx.lineWidth = 0.7; ctx.beginPath();
+        for (const t of xt.ticks) { const px = Math.round(X(t)) + 0.5; ctx.moveTo(px, pt); ctx.lineTo(px, pb); }
+        for (const t of yt.ticks) { const py = Math.round(Y(t)) + 0.5; ctx.moveTo(pl, py); ctx.lineTo(pr, py); }
+        ctx.stroke();
+      }
       if (o.zero && !o.ylog && L.y0 < 0 && L.y1 > 0) {
-        ctx.strokeStyle = '#b8b8b8'; ctx.lineWidth = 0.8; ctx.setLineDash([2, 3]);
-        ctx.beginPath(); ctx.moveTo(pl, Y(0)); ctx.lineTo(pr, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = '#9a9a9a'; ctx.lineWidth = 0.9;
+        ctx.beginPath(); ctx.moveTo(pl, Math.round(Y(0)) + 0.5); ctx.lineTo(pr, Math.round(Y(0)) + 0.5); ctx.stroke();
       }
       // fills between a series and a constant base (turning-moment diagram)
       for (const s of this.series) {
@@ -282,7 +291,6 @@
       ctx.strokeStyle = '#111'; ctx.lineWidth = 0.9;
       ctx.strokeRect(Math.round(pl) + 0.5, Math.round(pt) + 0.5, Math.round(pr - pl), Math.round(pb - pt));
       ctx.fillStyle = '#111';
-      const xt = o.xticks ? { ticks: o.xticks, step: o.xticks[1] - o.xticks[0] } : o.xlog ? { ticks: logTicks(L.x0, L.x1), step: 1 } : linTicks(L.x0, L.x1, Math.max(3, Math.round((pr - pl) / 80)));
       for (const t of xt.ticks) {
         const px = Math.round(X(t)) + 0.5;
         if (px < pl - 0.5 || px > pr + 0.5) continue;
@@ -290,7 +298,6 @@
         drawRich(ctx, o.xlog ? fmtLog(t) : fmtTick(t, xt.step), px, pb + 15, 11.5, 'center', '#111');
       }
       // y ticks with matplotlib-like offset factor for big numbers
-      let yt = o.ylog ? { ticks: logTicks(L.y0, L.y1), step: 1 } : linTicks(L.y0, L.y1, Math.max(3, Math.round((pb - pt) / 42)));
       const amax = Math.max(Math.abs(L.y0), Math.abs(L.y1));
       let ex = 0;
       if (!o.ylog && (amax >= 1e5 || (amax > 0 && amax < 1e-2))) ex = Math.floor(Math.log10(amax) / 3) * 3;
@@ -656,5 +663,5 @@
     }
   }
 
-  root.Plotter = { Plot, HeatMap, Bars, COL, cmap, drawRich, richHTML, fmtVal, parseRich, FM, FI };
+  root.Plotter = { Plot, HeatMap, Bars, COL, cmap, drawRich, richHTML, fmtVal, parseRich, FM, FI, forceDraw: false };
 })(typeof self !== 'undefined' ? self : globalThis);
