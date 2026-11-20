@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compliant Four-Bar Dynamics Lab</title>
+<meta name="description" content="Interactive dynamic analysis of a compliant four-bar mechanism with flexure hinges: kinematics, pseudo-rigid-body stiffness, motor torque, resonant drive, vibration, hinge stress and fatigue.">
+<meta name="theme-color" content="#0b1419">
+<meta property="og:title" content="Compliant Four-Bar Dynamics Lab">
+<meta property="og:description" content="Change any parameter of a flexure-hinge four-bar and watch the mechanism, motor torque, vibration and hinge stresses respond, with verified calculations.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23fff'/%3E%3Cpath d='M12 50 L20 24 L46 18 L52 50' fill='none' stroke='%23111' stroke-width='4' stroke-linejoin='round'/%3E%3Ccircle cx='20' cy='24' r='3.5' fill='%230e6f7c'/%3E%3Ccircle cx='46' cy='18' r='3.5' fill='%230e6f7c'/%3E%3Crect x='6' y='50' width='52' height='6' fill='%23999'/%3E%3C/svg%3E">
+<link rel="preload" href="vendor/katex/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/katex/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="css/style.css">
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="js/engine.js"></script>
+<script defer src="js/plot.js"></script>
+<script defer src="js/mechanism.js"></script>
+<script defer src="js/app.js"></script>
+</head>
+<body>
+<header class="topbar" id="top">
+  <a class="brand" href="#" aria-label="Compliant Four-Bar Dynamics Lab, back to top">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="30" height="30"><path d="M12 48 L20 22 L46 16 L52 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/><circle cx="20" cy="22" r="3.6" fill="#4fb3bf"/><circle cx="46" cy="16" r="3.6" fill="#4fb3bf"/><circle cx="12" cy="48" r="3.6" fill="#4fb3bf"/><circle cx="52" cy="48" r="3.6" fill="#4fb3bf"/></svg>
+    </span>
+    <span class="brand-text"><b>Compliant Four-Bar Dynamics Lab</b><small>Dynamics of Machinery</small></span>
+  </a>
+  <div class="tb-actions">
+    <button class="btn ghost" id="btnBaseline" title="Freeze the current design so every change is compared against it">Pin baseline</button>
+    <a class="btn ghost web-only" id="btnReport" href="report/Compliant-Four-Bar-Dynamic-Analysis.pdf" target="_blank" rel="noopener" title="Complete analysis of the default design as a PDF report">Report PDF</a>
+    <button class="btn ghost hide-sm web-only" id="btnCSV" title="Download the full drive-cycle table as CSV">CSV</button>
+    <button class="btn ghost hide-sm web-only" id="btnPrint" title="Print or save everything as PDF">Print</button>
+    <button class="btn primary web-only" id="btnShare" title="Copy a link that opens this exact configuration">Share link</button>
+  </div>
+</header>
+
+<div class="layout" id="layout">
+  <aside class="panel" id="panel" aria-label="Parameters">
+    <div class="panel-head">
+      <h2>Parameters</h2>
+      <button class="btn tiny" id="btnReset" title="Restore the selected preset">Reset</button>
+    </div>
+    <label class="preset-row"><span>Start from</span><select id="preset" aria-label="Preset design"></select></label>
+    <p class="panel-note">Drag a slider or type a value. Every result is recomputed instantly.</p>
+    <div class="qa" aria-label="Quick actions">
+      <button class="chip" id="qaOpt" title="Set the drive frequency to the value that needs the least RMS motor torque">Drive at best frequency</button>
+      <button class="chip" id="qaFn" title="Set the drive frequency equal to the natural frequency">Drive at f<sub>n</sub></button>
+    </div>
+    <div id="controls"></div>
+    <p class="panel-foot" id="perf"></p>
+  </aside>
+
+  <main class="pages" id="pages">
+
+    <!-- ============================================================ HERO: mechanism first -->
+    <section class="sheet hero" id="s-mech" aria-label="Mechanism in motion">
+      <div class="tag" data-tex="\mathcal{M}"></div>
+      <h1>Compliant Four-Bar Mechanism with Flexure Hinges</h1>
+      <p class="sub">A four-bar linkage made in one piece: its joints are thin flexure hinges instead of pins. A motor swings the input link; the flexures store energy like springs. The drawing is to scale and every number on this page is recalculated from first principles whenever a parameter changes.</p>
+      <ol class="howto" aria-label="How to use">
+        <li><b>1</b>Change a parameter or pick a preset</li>
+        <li><b>2</b>Watch the mechanism; pause or drag the phase slider</li>
+        <li><b>3</b>Open a tab below for the full analysis</li>
+      </ol>
+      <div class="err-banner" id="errBanner" role="alert"></div>
+      <div class="mech-head"><span id="phaseName" class="stroke-name">&nbsp;</span><span id="phiLabel" class="psi-label"></span></div>
+      <div class="mech-wrap" id="mechHost"></div>
+      <p class="mech-key"><span><i class="mi">O</i><sub>2</sub>, <i class="mi">O</i><sub>4</sub> frame pivots</span><span><i class="mi">A</i>, <i class="mi">B</i> moving joints</span><span><i class="mi">P</i> payload on the coupler</span><span>dashed: as-made (unstressed) position</span><span class="r">dotted: path of <i class="mi">P</i></span><span class="stress-key">hinge stress <i></i> 0 → fatigue limit</span><span class="r">arrow: motor torque <i class="mi">T</i></span></p>
+      <div class="transport">
+        <button class="btn round" id="btnPlay" aria-label="Pause animation" title="Play / pause (space)"><span class="ic-pause"></span></button>
+        <input type="range" id="scrub" min="0" max="360" step="0.5" value="0" aria-label="Drive phase">
+        <span class="scrub-val" id="scrubVal">0°</span>
+      </div>
+      <div class="transport2">
+        <label>Playback <input type="range" id="speed" min="0" max="1000" value="420" aria-label="Playback speed"> <span id="speedVal"></span></label>
+        <label class="chk"><input type="checkbox" id="chkTorque" checked> torque arrow</label>
+        <span class="muted small" id="slowmo"></span>
+      </div>
+      <div id="panelSlot"></div>
+      <h3 class="mini-h">At this instant</h3>
+      <div class="eqbox inst" id="inst" aria-live="off"></div>
+      <h3 class="mini-h">Results for the whole drive cycle</h3>
+      <div class="kpis" id="kpis"></div>
+      <p class="hint">Tip: press <b>Pin baseline</b>, then change a parameter. Every result shows its change in % and the plots show the old design dashed.</p>
+    </section>
+
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Analysis sections"></nav>
+
+    <!-- ============================================================ STEP-BY-STEP -->
+    <section class="sheet tab-page" id="solution" data-tab="Step-by-step" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{W}"></div>
+      <h2>Step-by-Step Solution at One Instant</h2>
+      <p class="sub">Position, velocity and acceleration analysis, flexure deflections and the motor torque, with your numbers substituted at every step.</p>
+      <div class="ws-controls">
+        <label>Solve at drive phase <span class="tx" data-tex="\phi=\Omega t"></span> =
+          <input type="number" id="wsNum" min="0" max="359.5" step="0.5" value="60" aria-label="Drive phase for the worked solution"> °</label>
+        <input type="range" id="wsRange" min="0" max="359.5" step="0.5" value="60" aria-label="Drive phase slider">
+        <div class="ws-quick">
+          <span class="muted small">Quick picks, φ =</span>
+          <button class="chip" data-phi="0">0°</button><button class="chip" data-phi="60">60°</button><button class="chip" data-phi="90">90°</button><button class="chip" data-phi="180">180°</button><button class="chip" data-phi="270">270°</button>
+          <button class="chip" id="wsSync" title="Use the phase currently shown by the animation">use animation phase</button>
+        </div>
+      </div>
+      <ol class="steps" id="steps"></ol>
+      <div class="eqbox result" id="wsResult"></div>
+    </section>
+
+    <!-- ============================================================ KINEMATICS -->
+    <section class="sheet tab-page" id="kinematics" data-tab="Kinematics" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{K}"></div>
+      <h2>Kinematics: Position, Velocity &amp; Acceleration</h2>
+      <p class="sub">How the coupler and the output link follow the swinging input link. These motions set every inertia force and every hinge deflection.</p>
+      <div class="obs" id="obsKin"></div>
+      <div class="fig-grid">
+        <div class="fig" id="figAng"></div>
+        <div class="fig" id="figPath"></div>
+      </div>
+      <p class="caption"><b>Fig. 2.</b> Left: link angles over one drive cycle. Right: path of the payload point <span class="tx" data-tex="P"></span> (the coupler curve); the dot follows the animation.</p>
+      <div class="fig-grid">
+        <div class="fig" id="figW"></div>
+        <div class="fig" id="figAl"></div>
+      </div>
+      <p class="caption"><b>Fig. 3.</b> Angular velocities and angular accelerations of the input (2), coupler (3) and output (4).</p>
+      <div class="fig" id="figMu"></div>
+      <p class="caption"><b>Fig. 4.</b> Transmission angle <span class="tx" data-tex="\mu"></span> between coupler and output link. Force transmission is good while <span class="tx" data-tex="40^\circ<\mu<140^\circ"></span>.</p>
+      <h3>How it is calculated</h3>
+      <div class="eqbox">
+        <div class="eq" data-tex="r_2e^{i\theta_2}+r_3e^{i\theta_3}=r_1+r_4e^{i\theta_4}\qquad\text{(loop closure)}"></div>
+        <div class="eq" data-tex="s=|O_4A|,\qquad \cos\alpha=\dfrac{r_3^2+s^2-r_4^2}{2r_3s},\qquad \theta_3=\angle AO_4\pm\alpha,\qquad \theta_4=\operatorname{atan2}\!\big(y_B,\;x_B-r_1\big)"></div>
+        <div class="eq" data-tex="\omega_3=h_3\,\omega_2,\quad h_3=\dfrac{r_2\sin(\theta_4-\theta_2)}{r_3\sin(\theta_3-\theta_4)},\qquad \omega_4=h_4\,\omega_2,\quad h_4=\dfrac{r_2\sin(\theta_3-\theta_2)}{r_4\sin(\theta_3-\theta_4)}"></div>
+        <div class="eq" data-tex="\alpha_3=h_3'\,\omega_2^2+h_3\,\alpha_2,\qquad h_3'=\dfrac{-r_2\cos(\theta_2-\theta_4)-r_3h_3^2\cos(\theta_3-\theta_4)+r_4h_4^2}{r_3\sin(\theta_3-\theta_4)}"></div>
+        <div class="eq" data-tex="\alpha_4=h_4'\,\omega_2^2+h_4\,\alpha_2,\qquad h_4'=\dfrac{-r_2\cos(\theta_2-\theta_3)-r_3h_3^2+r_4h_4^2\cos(\theta_4-\theta_3)}{r_4\sin(\theta_3-\theta_4)}"></div>
+        <div class="eq" data-tex="\text{Freudenstein: }K_1\cos\theta_4-K_2\cos\theta_2+K_3=\cos(\theta_2-\theta_4),\quad K_1=\tfrac{r_1}{r_2},\ K_2=\tfrac{r_1}{r_4},\ K_3=\tfrac{r_1^2+r_2^2-r_3^2+r_4^2}{2r_2r_4}"></div>
+      </div>
+      <div class="eqbox result" id="resKin"></div>
+    </section>
+
+    <!-- ============================================================ STIFFNESS -->
+    <section class="sheet tab-page" id="stiffness" data-tab="Flexure stiffness" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{C}"></div>
+      <h2>Flexure Hinges &amp; the Pseudo-Rigid-Body Model</h2>
+      <p class="sub">Each thin flexure behaves like a pin joint with a torsional spring. Their elastic energy is what makes this mechanism different from a rigid one.</p>
+      <div class="obs" id="obsStf"></div>
+      <svg class="prbm-fig" viewBox="0 0 640 150" role="img" aria-label="A flexure hinge is modelled as a pin joint with a torsional spring">
+        <rect x="20" y="62" width="150" height="26" fill="#eef3f5" stroke="#111" stroke-width="1.5"/>
+        <rect x="170" y="72" width="60" height="6" fill="#0e6f7c" stroke="#111" stroke-width="1"/>
+        <rect x="230" y="62" width="110" height="26" fill="#eef3f5" stroke="#111" stroke-width="1.5"/>
+        <line x1="170" y1="108" x2="230" y2="108" stroke="#111"/><line x1="170" y1="100" x2="170" y2="116" stroke="#111"/><line x1="230" y1="100" x2="230" y2="116" stroke="#111"/>
+        <text x="194" y="128" class="m">l</text>
+        <line x1="250" y1="72" x2="262" y2="44" stroke="#111"/><line x1="250" y1="78" x2="266" y2="56" stroke="#111"/>
+        <text x="268" y="46" class="m">t</text>
+        <text x="60" y="40">flexure hinge (width <tspan class="m">b</tspan>)</text>
+        <text x="368" y="82" style="font-size:26px">≡</text>
+        <rect x="400" y="62" width="100" height="26" fill="#eef3f5" stroke="#111" stroke-width="1.5"/>
+        <rect x="530" y="62" width="95" height="26" fill="#eef3f5" stroke="#111" stroke-width="1.5"/>
+        <circle cx="515" cy="75" r="7" fill="#fff" stroke="#111" stroke-width="1.6"/>
+        <path d="M515 75 m0 -14 a14 14 0 1 1 -12 7 a10 10 0 1 0 9 -4" fill="none" stroke="#0e6f7c" stroke-width="1.8"/>
+        <text x="460" y="40">pin + torsional spring</text>
+        <text x="488" y="128" class="m">K = E I / l</text>
+      </svg>
+      <p class="caption"><b>Fig. 5.</b> Small-length flexural pivot (<span class="tx" data-tex="l\ll"></span> link length) and its pseudo-rigid-body equivalent. The pivot sits at the middle of the flexure.</p>
+      <div class="table-wrap"><table class="vt hingetab" id="tblHinge"></table></div>
+      <div class="fig-grid">
+        <div class="fig" id="figV"></div>
+        <div class="fig" id="figTK"></div>
+      </div>
+      <p class="caption"><b>Fig. 6.</b> Left: elastic energy stored in the flexures against input angle. Right: static torque needed to hold the input link (exact, and the linear spring <span class="tx" data-tex="K_{eq}\,\Delta\theta_2"></span>). Shaded: range of the drive swing.</p>
+      <div class="fig-grid">
+        <div class="fig" id="figPsi"></div>
+        <div class="fig" id="figKeq"></div>
+      </div>
+      <p class="caption"><b>Fig. 7.</b> Left: rotation of each flexure. Right: equivalent stiffness <span class="tx" data-tex="K_{eq}=d^2V/d\theta_2^2"></span> and equivalent inertia <span class="tx" data-tex="M"></span> (relative to their values at the as-made angle).</p>
+      <h3>How it is calculated</h3>
+      <div class="eqbox">
+        <div class="eq" data-tex="I=\dfrac{b\,t^3}{12},\qquad K=\dfrac{E\,I}{l}\qquad\text{(small-length flexural pivot)}"></div>
+        <div class="eq" data-tex="\psi_{O_2}=\theta_2-\theta_{2,0},\quad \psi_A=(\theta_3-\theta_2)-(\theta_{3,0}-\theta_{2,0}),\quad \psi_B=(\theta_4-\theta_3)-(\theta_{4,0}-\theta_{3,0}),\quad \psi_{O_4}=\theta_4-\theta_{4,0}"></div>
+        <div class="eq" data-tex="V=\tfrac12\sum_j K_j\,\psi_j^2,\qquad T_K=\dfrac{dV}{d\theta_2}=\sum_j K_j\,\psi_j\,g_j,\qquad g_j=\dfrac{\partial\psi_j}{\partial\theta_2}=\big(1,\ h_3-1,\ h_4-h_3,\ h_4\big)"></div>
+        <div class="eq" data-tex="K_{eq}=\dfrac{d^2V}{d\theta_2^2}=\sum_j K_j\big(g_j^2+\psi_j\,g_j'\big),\qquad \sigma_{b}=\dfrac{E\,t\,\psi}{2\,l}"></div>
+      </div>
+      <div class="eqbox result" id="resStf"></div>
+    </section>
+
+    <!-- ============================================================ DRIVE -->
+    <section class="sheet tab-page" id="drive" data-tab="Motor torque &amp; energy" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{T}"></div>
+      <h2>Motor Torque, Power &amp; Energy</h2>
+      <p class="sub">The motor must accelerate the links and bend the flexures. Near resonance the flexures return the energy the links need, so the motor works far less than for a rigid pin-jointed linkage.</p>
+      <div class="obs" id="obsDrv"></div>
+      <div class="fig" id="figT"></div>
+      <p class="caption"><b>Fig. 8.</b> Motor torque over one drive cycle and its parts: inertia <span class="tx" data-tex="T_I"></span>, flexure springs <span class="tx" data-tex="T_K"></span> and damping <span class="tx" data-tex="T_D"></span>. The inertia torque <span class="tx" data-tex="T_I"></span> is also the torque the same linkage would need with pin joints (rigid).</p>
+      <div class="fig" id="figTf"></div>
+      <p class="caption"><b>Fig. 9.</b> Peak and RMS motor torque against drive frequency for the same swing. Vertical lines: natural frequency <span class="tx" data-tex="f_n"></span>, best frequency <span class="tx" data-tex="f^*"></span> and the chosen <span class="tx" data-tex="f"></span>.</p>
+      <div class="fig-grid">
+        <div class="fig" id="figE"></div>
+        <div class="fig" id="figLoop"></div>
+      </div>
+      <p class="caption"><b>Fig. 10.</b> Left: kinetic energy <span class="tx" data-tex="E_k"></span> of the links and elastic energy <span class="tx" data-tex="V"></span> of the flexures; their sum changes only by the damping loss. Right: motor torque against input angle; the enclosed area is the energy the motor supplies each cycle.</p>
+      <div class="fig" id="figPw"></div>
+      <p class="caption"><b>Fig. 11.</b> Instantaneous motor power, compliant and rigid. Negative power means the mechanism drives the motor back (regeneration or braking).</p>
+      <h3>How it is calculated</h3>
+      <div class="eqbox">
+        <div class="eq" data-tex="\theta_2(t)=\theta_{2,0}+\delta+\Theta\sin\Omega t,\qquad \Omega=2\pi f"></div>
+        <div class="eq" data-tex="E_k=\tfrac12 M(\theta_2)\,\dot\theta_2^{\,2},\qquad M=I_{O2}+I_{O4}h_4^2+I_{G3}h_3^2+m_3\Big|\dfrac{d\mathbf r_{G3}}{d\theta_2}\Big|^2+m_p\Big|\dfrac{d\mathbf r_{P}}{d\theta_2}\Big|^2"></div>
+        <div class="eq" data-tex="T=\underbrace{M\ddot\theta_2+\tfrac12 M'\dot\theta_2^{\,2}}_{T_I}+\underbrace{\dfrac{dV}{d\theta_2}}_{T_K}+\underbrace{C\,\dot\theta_2}_{T_D}\qquad\text{(Lagrange)}"></div>
+        <div class="eq" data-tex="P=T\,\dot\theta_2,\qquad \bar P=f\oint T\,d\theta_2=f\oint C\,\dot\theta_2\,d\theta_2,\qquad \text{small swing: } T_{peak}\approx\Theta\sqrt{(K_{eq}-M\Omega^2)^2+(C\Omega)^2}"></div>
+      </div>
+      <div class="eqbox result" id="resDrv"></div>
+    </section>
+
+    <!-- ============================================================ VIBRATION -->
+    <section class="sheet tab-page" id="vibration" data-tab="Vibration" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{F}"></div>
+      <h2>Free &amp; Forced Vibration</h2>
+      <p class="sub">The flexures make the mechanism a spring–mass system with one degree of freedom. Its natural frequency decides how it should be driven.</p>
+      <div class="obs" id="obsVib"></div>
+      <div class="fig" id="figFree"></div>
+      <p class="caption"><b>Fig. 12.</b> Free vibration after releasing the input link from <span class="tx" data-tex="\theta_{2,0}+\Theta"></span> (exact nonlinear equation, RK4). Dashed: envelope <span class="tx" data-tex="\Theta e^{-\zeta\omega_n t}"></span>.</p>
+      <div class="fig-grid">
+        <div class="fig" id="figMF"></div>
+        <div class="fig" id="figPh"></div>
+      </div>
+      <p class="caption"><b>Fig. 13.</b> Forced vibration under a harmonic torque: magnification factor and phase lag against frequency ratio <span class="tx" data-tex="r=\Omega/\omega_n"></span>. The dot marks the chosen drive frequency.</p>
+      <div class="fig" id="figBack"></div>
+      <p class="caption"><b>Fig. 14.</b> Backbone curve: frequency of free oscillation against amplitude (nonlinear, from the energy integral). A flat curve means the mechanism behaves like a linear spring–mass system.</p>
+      <h3>How it is calculated</h3>
+      <div class="eqbox">
+        <div class="eq" data-tex="\omega_n=\sqrt{\dfrac{K_{eq}}{M}}\Bigg|_{\theta_{2,0}},\qquad f_n=\dfrac{\omega_n}{2\pi},\qquad C=\sum_j c_j\,g_j^2,\quad c_j=\dfrac{2\zeta}{\omega_n}K_j\ \Rightarrow\ \zeta=\dfrac{C}{2M\omega_n}"></div>
+        <div class="eq" data-tex="\Delta\theta(t)\approx\Theta\,e^{-\zeta\omega_n t}\cos\omega_d t,\qquad \omega_d=\omega_n\sqrt{1-\zeta^2},\qquad \delta=\ln\dfrac{x_k}{x_{k+1}}=\dfrac{2\pi\zeta}{\sqrt{1-\zeta^2}}"></div>
+        <div class="eq" data-tex="\dfrac{\Theta}{\Theta_{st}}=\dfrac{1}{\sqrt{(1-r^2)^2+(2\zeta r)^2}},\qquad \tan\varphi=\dfrac{2\zeta r}{1-r^2},\qquad Q=\dfrac{1}{2\zeta}"></div>
+        <div class="eq" data-tex="T_{free}(a)=2\int_{\theta_-}^{\theta_+}\sqrt{\dfrac{M(\theta)}{2\,[V(\theta_+)-V(\theta)]}}\;d\theta,\qquad \theta_+=\theta_{2,0}+a"></div>
+      </div>
+      <div class="eqbox result" id="resVib"></div>
+    </section>
+
+    <!-- ============================================================ STRENGTH -->
+    <section class="sheet tab-page" id="strength" data-tab="Strength &amp; fatigue" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{S}"></div>
+      <h2>Joint Forces, Hinge Stress &amp; Fatigue</h2>
+      <p class="sub">Flexures bend millions of times. Their stress must stay below the fatigue strength of the material, and the joint forces load them further.</p>
+      <div class="obs" id="obsStr"></div>
+      <div class="fig" id="figSig"></div>
+      <p class="caption"><b>Fig. 15.</b> Surface stress in each flexure over one drive cycle (the more highly loaded face).</p>
+      <div class="fig-grid">
+        <div class="fig" id="figGood"></div>
+        <div class="fig" id="figF"></div>
+      </div>
+      <p class="caption"><b>Fig. 16.</b> Left: modified Goodman diagram with each flexure's stress state. Right: force carried by each joint (Newton–Euler).</p>
+      <div class="table-wrap"><table class="vt" id="tblFat"></table></div>
+      <div class="fig" id="figShake"></div>
+      <p class="caption"><b>Fig. 17.</b> Shaking force on the frame, <span class="tx" data-tex="\mathbf F_s=-\sum m_i\mathbf a_{Gi}"></span>, over one drive cycle (polar diagram).</p>
+      <h3>How it is calculated</h3>
+      <div class="eqbox">
+        <div class="eq" data-tex="\text{link 4 about }O_4:\ \ \mathbf r_{O_4B}\times\mathbf F_{34}-M_B-M_{O_4}=I_{O4}\,\alpha_4"></div>
+        <div class="eq" data-tex="\text{link 3 about }A:\ \ \mathbf r_{AB}\times\mathbf F_{43}-M_A+M_B=I_{G3}\,\alpha_3+\mathbf r_{AG_3}\times m_3\mathbf a_{G3}+\mathbf r_{AP}\times m_p\mathbf a_P"></div>
+        <div class="eq" data-tex="M_j=K_j\psi_j+c_j\dot\psi_j,\qquad T=I_{O2}\,\alpha_2+M_{O_2}-M_A+\mathbf r_{O_2A}\times\mathbf F_{23}"></div>
+        <div class="eq" data-tex="\sigma=\dfrac{E\,t\,\psi}{2\,l}+\dfrac{3F\,l}{b\,t^2}+\dfrac{F}{b\,t},\qquad \sigma_a=\dfrac{\sigma_{max}-\sigma_{min}}{2},\quad \sigma_m=\dfrac{\sigma_{max}+\sigma_{min}}{2}"></div>
+        <div class="eq" data-tex="\dfrac{1}{n_f}=\dfrac{\sigma_a}{S_e}+\dfrac{\sigma_m}{S_{ut}},\qquad n_y=\dfrac{S_y}{\sigma_{max}},\qquad \psi_{allow}=\dfrac{2\,l\,S_e}{E\,t\,n}"></div>
+      </div>
+      <div class="eqbox result" id="resStr"></div>
+    </section>
+
+    <!-- ============================================================ SENSITIVITY -->
+    <section class="sheet tab-page" id="sensitivity" data-tab="What-if" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{D}"></div>
+      <h2>What Changes When a Parameter Changes?</h2>
+      <p class="sub">A bar of +0.8 means a 1 % increase in that parameter raises the chosen result by about 0.8 %; negative bars mean it falls.</p>
+      <div class="fig-toolbar"><label>Result <select id="sensOut"></select></label></div>
+      <div class="fig" id="figSens"></div>
+      <p class="caption"><b>Fig. 18.</b> Elasticity <span class="tx" data-tex="\partial\ln y/\partial\ln x"></span> of the selected result to each input at the current design (central differences, ±1 %).</p>
+      <div class="fig-grid">
+        <div class="fig" id="mapA"></div>
+        <div class="fig" id="mapB"></div>
+      </div>
+      <p class="caption"><b>Fig. 19.</b> Flexure design space over hinge thickness <span class="tx" data-tex="t"></span> and length <span class="tx" data-tex="l"></span> (★ = current design). Left: natural frequency; the bold line is where it equals the drive frequency (resonant drive). Right: fatigue safety factor; the bold line is <span class="tx" data-tex="n_f=1"></span>, red is unsafe. Click a map to move the design there.</p>
+    </section>
+
+    <!-- ============================================================ VERIFICATION -->
+    <section class="sheet tab-page" id="verification" data-tab="Verification" role="tabpanel">
+      <div class="tag" data-tex="\mathcal{V}"></div>
+      <h2>Verification of the Calculations</h2>
+      <p class="sub">Every result is cross-checked against a closed-form solution or an independent method.</p>
+      <p><b>Benchmark A: parallel-guiding mechanism.</b> For <span class="tx" data-tex="r_1=r_3"></span> and <span class="tx" data-tex="r_2=r_4"></span> (a parallelogram, aluminium flexures) the coupler only translates: <span class="tx" data-tex="h_3=0,\ h_4=1"></span>, so <span class="tx" data-tex="K_{eq}=4K"></span>, <span class="tx" data-tex="M=I_{O2}+I_{O4}+(m_3+m_p)\,r_2^2"></span>, and the system is exactly linear.</p>
+      <div class="table-wrap"><table class="vt" id="tblBenchA"></table></div>
+      <p><b>Benchmark B: forced vibration.</b> The same linear mechanism (<span class="tx" data-tex="\zeta=5\,\%"></span>) is driven by a harmonic torque giving a static deflection of 2°. The steady amplitude from time integration must equal <span class="tx" data-tex="\Theta_{st}/\sqrt{(1-r^2)^2+(2\zeta r)^2}"></span>.</p>
+      <div class="table-wrap"><table class="vt" id="tblBenchB"></table></div>
+      <p><b>Live checks on the current design</b> (recomputed on every change):</p>
+      <div class="table-wrap"><table class="vt" id="tblLive"></table></div>
+      <div class="fig" id="figVer"></div>
+      <p class="caption"><b>Fig. 20.</b> Motor torque from the Lagrange equation and from the Newton–Euler equations of the three moving links (independent methods). The curves coincide.</p>
+    </section>
+
+    <!-- ============================================================ THEORY -->
+    <section class="sheet tab-page" id="theory" data-tab="Problem &amp; notation" role="tabpanel">
+      <div class="tag" data-tex="\mathscr{P}"></div>
+      <h2>Problem Statement &amp; Notation</h2>
+      <p><b>Setting.</b> A planar four-bar chain <span class="tx" data-tex="O_2ABO_4"></span> made in one piece. The frame link <span class="tx" data-tex="O_2O_4"></span> has length <span class="tx" data-tex="r_1"></span>; the input link <span class="tx" data-tex="O_2A"></span> (<span class="tx" data-tex="r_2"></span>), coupler <span class="tx" data-tex="AB"></span> (<span class="tx" data-tex="r_3"></span>) and output link <span class="tx" data-tex="O_4B"></span> (<span class="tx" data-tex="r_4"></span>) are rigid bars of width <span class="tx" data-tex="w"></span> and thickness <span class="tx" data-tex="b"></span>. The joints are flexure hinges of length <span class="tx" data-tex="l"></span>, thickness <span class="tx" data-tex="t"></span> and width <span class="tx" data-tex="b"></span>, unstressed in the as-made position <span class="tx" data-tex="\theta_2=\theta_{2,0}"></span>. A payload <span class="tx" data-tex="m_p"></span> sits at point <span class="tx" data-tex="P"></span> of the coupler. A motor drives the input link through <span class="tx" data-tex="\theta_2=\theta_{2,0}+\delta+\Theta\sin\Omega t"></span>.</p>
+      <p><b>Find</b> the motion of every link, the stiffness of the flexures, the motor torque and power, the natural frequency and vibration response, the joint forces, the hinge stresses and their fatigue safety, and the drive frequency that needs the least motor torque.</p>
+      <p><b>Coordinates.</b> Angles are measured counter-clockwise from the frame line <span class="tx" data-tex="O_2O_4"></span>; <span class="tx" data-tex="\phi=\Omega t"></span> is the drive phase. Torque <span class="tx" data-tex="T"></span> is positive counter-clockwise on the input link.</p>
+      <p><b>Data</b> <span class="muted">(live)</span>.</p>
+      <p class="dataline" id="dataLine"></p>
+      <div class="cols">
+        <dl class="nom">
+          <dt data-tex="r_1,\ r_2,\ r_3,\ r_4"></dt><dd>frame, input, coupler and output link lengths</dd>
+          <dt data-tex="\theta_2,\ \theta_3,\ \theta_4"></dt><dd>link angles; <span class="tx" data-tex="\theta_{2,0}"></span> as-made input angle</dd>
+          <dt data-tex="h_3,\ h_4,\ h_3',\ h_4'"></dt><dd>kinematic coefficients <span class="tx" data-tex="d\theta_j/d\theta_2"></span> and their derivatives</dd>
+          <dt data-tex="\mu"></dt><dd>transmission angle</dd>
+          <dt data-tex="E,\ I,\ K"></dt><dd>elastic modulus, hinge second moment of area, hinge stiffness</dd>
+          <dt data-tex="\psi_j,\ g_j"></dt><dd>rotation of the flexure at joint <span class="tx" data-tex="j\in\{O_2,A,B,O_4\}"></span> and <span class="tx" data-tex="\partial\psi_j/\partial\theta_2"></span></dd>
+          <dt data-tex="V,\ K_{eq},\ M"></dt><dd>elastic energy, equivalent stiffness and inertia at the input</dd>
+          <dt data-tex="T,\ T_I,\ T_K,\ T_D"></dt><dd>motor torque and its inertia, spring and damping parts</dd>
+          <dt data-tex="\omega_n,\ \zeta,\ r"></dt><dd>natural frequency, damping ratio, frequency ratio</dd>
+          <dt data-tex="\sigma_a,\ \sigma_m,\ n_f,\ n_y"></dt><dd>alternating and mean stress, fatigue and yield safety factors</dd>
+        </dl>
+        <div>
+          <p><b>Assumptions.</b></p>
+          <ul class="tight">
+            <li>Planar motion in a horizontal plane (gravity does not act in the plane).</li>
+            <li>Rigid links; flexures modelled as small-length flexural pivots (<span class="tx" data-tex="l\ll"></span> link length), linear elastic.</li>
+            <li>Prescribed sinusoidal input motion; damping proportional to hinge stiffness.</li>
+            <li>Hinge stress includes the joint force conservatively (as both bending and direct stress).</li>
+          </ul>
+          <p><b>Numerics.</b> 720 positions per drive cycle (0.5°), closed-form kinematics, RK4 time integration, quadrature for the free-oscillation period.</p>
+        </div>
+      </div>
+      <p><b>References.</b></p>
+      <ol class="refs">
+        <li>L.&nbsp;L.&nbsp;Howell, <i>Compliant Mechanisms</i>, Wiley, 2001.</li>
+        <li>Y.-Q.&nbsp;Yu, L.&nbsp;L.&nbsp;Howell, C.&nbsp;Lusk, Y.&nbsp;Yue, M.-G.&nbsp;He, “Dynamic modeling of compliant mechanisms based on the pseudo-rigid-body model”, <i>ASME J. Mechanical Design</i> 127(4), 2005.</li>
+        <li>Study of compliant joints that store elastic energy to cut the motor torque of an automatic-machine mechanism running at resonance, <i>Int. J. Advanced Manufacturing Technology</i>, Springer, 2022, doi:10.1007/s00170-022-09879-6.</li>
+        <li>S.&nbsp;S.&nbsp;Rattan, <i>Theory of Machines</i>, McGraw-Hill Education.</li>
+        <li>J.&nbsp;J.&nbsp;Uicker, G.&nbsp;R.&nbsp;Pennock &amp; J.&nbsp;E.&nbsp;Shigley, <i>Theory of Machines and Mechanisms</i>, Oxford University Press.</li>
+        <li>S.&nbsp;S.&nbsp;Rao, <i>Mechanical Vibrations</i>, Pearson.</li>
+        <li>R.&nbsp;G.&nbsp;Budynas &amp; J.&nbsp;K.&nbsp;Nisbett, <i>Shigley’s Mechanical Engineering Design</i>, McGraw-Hill.</li>
+      </ol>
+    </section>
+  </main>
+</div>
+
+<div class="pip" id="pip" aria-hidden="true">
+  <div class="pip-host" id="pipHost"></div>
+  <div class="pip-bar"><button class="btn round small" id="pipPlay" aria-label="Play or pause"><span class="ic-pause"></span></button><span id="pipLabel"></span><a href="#" class="pip-link" id="pipTop">top ↑</a><button class="pip-close" id="pipClose" aria-label="Hide the mini mechanism" title="Hide">×</button></div>
+</div>
+<button class="fab" id="fab">Parameters ↑</button>
+<div class="toast" id="toast" role="status"></div>
+<noscript><p class="noscript">This dashboard needs JavaScript to compute and draw the results.</p></noscript>
+</body>
+</html>
