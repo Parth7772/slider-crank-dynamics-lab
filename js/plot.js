@@ -110,12 +110,17 @@
     if (v >= 1e4 || v < 1e-2) { const e = Math.round(Math.log10(v)); if (Math.abs(v - Math.pow(10, e)) < 1e-9 * v) return '10$^{' + String(e).replace('-', MINUS) + '}$'; }
     return String(+v.toPrecision(3));
   }
+  const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
   function fmtVal(v, sig) {
     if (!isFinite(v)) return '—';
     sig = sig || 4;
     const a = Math.abs(v);
     let s;
-    if (a !== 0 && (a >= 1e6 || a < 1e-3)) s = v.toExponential(sig - 1).replace('e', '×10^').replace('+', '');
+    if (a !== 0 && (a >= 1e6 || a < 1e-3)) {
+      // 3.30×10⁻⁴ with real superscripts, so it reads correctly in HTML and on the canvas
+      const [m, e] = v.toExponential(sig - 1).split('e');
+      s = m + '×10' + String(+e).replace(/[-0-9]/g, (ch) => SUP[ch]);
+    }
     else s = (+v.toPrecision(sig)).toLocaleString('en-US', { maximumFractionDigits: Math.max(0, sig - 1 - Math.floor(Math.log10(a || 1))) });
     return s.replace('-', MINUS);
   }

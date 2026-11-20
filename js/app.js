@@ -107,7 +107,8 @@
   // words inside subscripts (T_{mean}, F_{Q,max}) are set upright, as \mathrm would
   const texFix = (s) => s.replace(/_\{([^{}]*)\}/g, (m, g) => '_{' + g.replace(/(^|[^\\A-Za-z])([A-Za-z]{2,})/g, (q, a, w) => a + '\\mathrm{' + w + '}') + '}');
   const tex = (s, display) => (window.katex ? katex.renderToString(texFix(s), { throwOnError: false, displayMode: !!display }) : s);
-  const nf = (v, sig) => fmtVal(v, sig || 4).replace(/,/g, '{,}').replace(/\u2212/g, '-').replace(/×10\^(-?\d+)/, '\\times10^{$1}');
+  const UNSUP = { '⁻': '-', '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+  const nf = (v, sig) => fmtVal(v, sig || 4).replace(/,/g, '{,}').replace(/\u2212/g, '-').replace(/×10([⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+)/, (m, e) => '\\times10^{' + [...e].map((ch) => UNSUP[ch]).join('') + '}');
   const pn = (v, sig) => (v < 0 ? '(' + nf(v, sig) + ')' : nf(v, sig));      // negative numbers in brackets when substituted
   const fx = (v, d) => v.toFixed(d).replace('-', MINUS);
   const unitFmt = (u, k) => (v) => fmtVal(v * (k || 1)) + (u ? '\u2009' + u : '');
